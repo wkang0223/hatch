@@ -1,0 +1,20 @@
+# Rust
+target/
+*.lock.bak
+
+# Next.js
+dashboard/.next/
+dashboard/node_modules/
+dashboard/.env.local
+
+# Env files with secrets
+.env
+.env.*
+!.env.example
+
+# macOS
+.DS_Store
+
+# Logs
+*.log
+nohup.out

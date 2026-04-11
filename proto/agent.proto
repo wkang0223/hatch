@@ -1,0 +1,121 @@
+syntax = "proto3";
+package neuralmesh.agent.v1;
+
+import "google/protobuf/timestamp.proto";
+
+// ──────────────────────────────────────────────
+// Provider registration & heartbeat
+// ──────────────────────────────────────────────
+
+message MacChipInfo {
+    string chip_model    = 1;  // "M4 Pro", "M3 Ultra", etc.
+    uint32 unified_memory_gb = 2;
+    uint32 gpu_cores     = 3;
+    uint32 cpu_cores     = 4;
+    string metal_version = 5;  // "3.2", "3.1", etc.
+    string serial_number = 6;  // IOPlatformSerialNumber
+    string platform_uuid = 7;  // IOPlatformUUID
+}
+
+message ProviderCapabilities {
+    MacChipInfo chip                    = 1;
+    repeated string installed_runtimes  = 2;  // ["mlx", "torch-mps", "onnx-coreml"]
+    uint32 max_job_ram_gb               = 3;  // How much RAM provider offers
+    uint32 bandwidth_mbps               = 4;
+    string region                       = 5;  // "us-west-2", "eu-central-1", etc.
+    double floor_price_nmc_per_hour     = 6;
+    string wireguard_public_key         = 7;
+    string ipv4_address                 = 8;  // May be empty if behind NAT
+    uint32 port                         = 9;
+}
+
+message RegisterProviderRequest {
+    ProviderCapabilities capabilities = 1;
+    string provider_id                = 2;  // libp2p PeerId (base58)
+    bytes  attestation_signature      = 3;  // Ed25519 sig over capabilities bytes
+    string nm_version                 = 4;  // agent version string
+}
+
+message RegisterProviderResponse {
+    string status          = 1;  // "ok" | "rejected"
+    string message         = 2;
+    string assigned_relay  = 3;  // Coordinator-assigned relay for NAT traversal
+}
+
+message ProviderHeartbeat {
+    string provider_id     = 1;
+    string state           = 2;  // "available" | "leased" | "busy" | "offline"
+    float  gpu_util_pct    = 3;
+    uint32 ram_used_gb     = 4;
+    string active_job_id   = 5;  // Empty if no active job
+    uint64 uptime_seconds  = 6;
+    google.protobuf.Timestamp timestamp = 7;
+}
+
+message HeartbeatResponse {
+    bool   ok      = 1;
+    string message = 2;
+}
+
+// ──────────────────────────────────────────────
+// Job assignment (coordinator → agent)
+// ──────────────────────────────────────────────
+
+message JobAssignment {
+    string job_id                = 1;
+    string bundle_url            = 2;  // Presigned S3 URL for job bundle
+    string bundle_hash           = 3;  // SHA256 of bundle (verify after download)
+    string runtime               = 4;  // "mlx" | "torch-mps" | "onnx-coreml" | "llama-cpp"
+    uint32 ram_limit_gb          = 5;
+    uint32 duration_seconds      = 6;  // Max allowed duration
+    string consumer_ssh_pubkey   = 7;  // Ed25519 SSH pubkey for job access
+    string consumer_wireguard_key = 8; // Consumer's WireGuard public key
+    string consumer_peer_id      = 9;  // Consumer's libp2p PeerId
+    map<string, string> env_vars = 10; // Optional env vars for job
+}
+
+message JobAccepted {
+    string job_id                = 1;
+    string provider_id           = 2;
+    string wireguard_endpoint    = 3;  // "10.77.x.x:51820" or relay
+    string wireguard_public_key  = 4;  // Ephemeral per-job WireGuard public key
+    uint32 ssh_port              = 5;  // Restricted sshd port (default 2222)
+    google.protobuf.Timestamp ready_at = 6;
+}
+
+message JobRejected {
+    string job_id  = 1;
+    string reason  = 2;
+}
+
+// ──────────────────────────────────────────────
+// Job completion (agent → coordinator)
+// ──────────────────────────────────────────────
+
+message JobComplete {
+    string job_id            = 1;
+    string provider_id       = 2;
+    int32  exit_code         = 3;
+    string output_hash       = 4;  // SHA256 of stdout+stderr+artifacts
+    uint64 actual_runtime_s  = 5;
+    float  avg_gpu_util_pct  = 6;
+    uint32 peak_ram_gb       = 7;
+    bytes  compute_proof     = 8;  // Reserved: ZK Groth16 proof (Phase 3)
+    bytes  provider_signature = 9; // Ed25519 sig over (job_id || output_hash || runtime_s)
+}
+
+message JobCompleteAck {
+    bool   ok            = 1;
+    double credits_earned = 2;  // NMC credited to provider
+    string message       = 3;
+}
+
+// ──────────────────────────────────────────────
+// AgentService: Provider agent ↔ Coordinator
+// ──────────────────────────────────────────────
+service AgentService {
+    rpc RegisterProvider (RegisterProviderRequest)  returns (RegisterProviderResponse);
+    rpc SendHeartbeat    (ProviderHeartbeat)         returns (HeartbeatResponse);
+    rpc AcknowledgeJob   (JobAccepted)               returns (JobCompleteAck);
+    rpc ReportCompletion (JobComplete)               returns (JobCompleteAck);
+}

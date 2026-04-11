@@ -1,0 +1,27 @@
+[package]
+name = "nm-gpu"
+version.workspace = true
+edition.workspace = true
+description = "Cross-vendor GPU detection and capability abstraction (Apple/NVIDIA/AMD/Intel Arc)"
+
+[dependencies]
+anyhow    = { workspace = true }
+thiserror = { workspace = true }
+tracing   = { workspace = true }
+serde     = { workspace = true }
+serde_json = { workspace = true }
+nm-common = { workspace = true }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+# Apple-specific GPU detection — uses system_profiler + ioreg
+# (already handled by nm-macos; re-exported here for unified API)
+
+[target.'cfg(target_os = "linux")'.dependencies]
+# NVIDIA: NVML (optional, requires nvidia driver)
+nvml-wrapper = { workspace = true, optional = true }
+
+[features]
+nvidia = ["nvml-wrapper"]
+amd   = []        # ROCm via sysfs / rocm-smi subprocess
+intel = []        # Intel Arc via sysfs / xpu-smi subprocess
+default = []

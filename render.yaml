@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: neuralmesh-coordinator
+    runtime: docker
+    dockerfilePath: ./infrastructure/Dockerfile.coordinator
+    dockerContext: .
+    plan: free
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: neuralmesh-db
+          property: connectionString
+      - key: RUST_LOG
+        value: info
+      - key: NM_REDIS_URL
+        sync: false   # paste Upstash Redis URL here in Render dashboard
+      # NM_NATS_URL — leave unset to use DB polling fallback (free tier)
+    healthCheckPath: /health
+
+databases:
+  - name: neuralmesh-db
+    plan: free
+    databaseName: neuralmesh
+    user: neuralmesh

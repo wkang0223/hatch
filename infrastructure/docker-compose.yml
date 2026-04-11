@@ -1,0 +1,175 @@
+version: "3.9"
+
+# NeuralMesh local dev stack
+# Starts: PostgreSQL, NATS JetStream, Redis, and the coordinator service.
+#
+# Usage:
+#   docker compose up -d           # Start all services
+#   docker compose logs -f coordinator
+#   docker compose down -v         # Destroy (removes volumes)
+#
+# The coordinator listens on:
+#   gRPC:  localhost:9090
+#   REST:  localhost:8080
+#
+# The ledger listens on:
+#   REST:  localhost:8082
+
+services:
+  # ── PostgreSQL ─────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: neuralmesh
+      POSTGRES_USER: neuralmesh
+      POSTGRES_PASSWORD: neuralmesh_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U neuralmesh"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ── NATS JetStream ─────────────────────────────────────────────────────────
+  nats:
+    image: nats:2.10-alpine
+    restart: unless-stopped
+    command: ["-js", "-m", "8222", "--name", "neuralmesh-nats"]
+    ports:
+      - "4222:4222"   # NATS client
+      - "8222:8222"   # Monitoring HTTP
+    volumes:
+      - nats_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8222/healthz | grep -q ok"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ── Redis (session cache, rate limiting, pub/sub) ──────────────────────────
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--save", "60", "1", "--loglevel", "warning"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ── MinIO (S3-compatible artifact store for job bundles) ───────────────────
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: neuralmesh
+      MINIO_ROOT_PASSWORD: neuralmesh_dev_secret
+    ports:
+      - "9000:9000"   # S3 API
+      - "9001:9001"   # Web console
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "mc ready local 2>/dev/null || curl -f http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+
+  # ── MinIO bucket init (creates neuralmesh-artifacts bucket) ───────────────
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+        mc alias set local http://minio:9000 neuralmesh neuralmesh_dev_secret &&
+        mc mb --ignore-existing local/neuralmesh-artifacts &&
+        mc anonymous set download local/neuralmesh-artifacts &&
+        echo 'MinIO bucket initialized'
+      "
+    restart: on-failure
+
+  # ── Coordinator ────────────────────────────────────────────────────────────
+  coordinator:
+    build:
+      context: ..
+      dockerfile: infrastructure/Dockerfile.coordinator
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://neuralmesh:neuralmesh_dev@postgres:5432/neuralmesh
+      NATS_URL: nats://nats:4222
+      REDIS_URL: redis://redis:6379
+      ARTIFACT_STORE_URL: http://minio:9000
+      ARTIFACT_STORE_BUCKET: neuralmesh-artifacts
+      ARTIFACT_STORE_KEY: neuralmesh
+      ARTIFACT_STORE_SECRET: neuralmesh_dev_secret
+      GRPC_ADDR: "0.0.0.0:9090"
+      REST_ADDR: "0.0.0.0:8080"
+      RUST_LOG: "neuralmesh_coordinator=debug,info"
+    ports:
+      - "9090:9090"   # gRPC (agent registration, job assignment)
+      - "8080:8080"   # REST (consumer API, dashboard)
+    volumes:
+      - coordinator_logs:/var/log/neuralmesh
+
+  # ── Ledger ─────────────────────────────────────────────────────────────────
+  ledger:
+    build:
+      context: ..
+      dockerfile: infrastructure/Dockerfile.ledger
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://neuralmesh:neuralmesh_dev@postgres:5432/neuralmesh
+      REST_ADDR: "0.0.0.0:8082"
+      PLATFORM_FEE_PCT: "8"
+      RUST_LOG: "neuralmesh_ledger=debug,info"
+    ports:
+      - "8082:8082"   # REST (wallet, deposits, withdrawals)
+
+  # ── Dashboard (Next.js) ────────────────────────────────────────────────────
+  dashboard:
+    build:
+      context: ../dashboard
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - coordinator
+      - ledger
+    environment:
+      NEXT_PUBLIC_COORDINATOR_URL: "http://coordinator:8080"
+      NEXT_PUBLIC_LEDGER_URL: "http://ledger:8082"
+      # In production set this to your public domain
+      NEXTAUTH_URL: "${NEXTAUTH_URL:-http://localhost:3000}"
+    ports:
+      - "3000:3000"
+
+volumes:
+  postgres_data:
+  nats_data:
+  redis_data:
+  minio_data:
+  coordinator_logs:
+
+networks:
+  default:
+    name: neuralmesh_dev

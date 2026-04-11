@@ -1,0 +1,127 @@
+syntax = "proto3";
+package neuralmesh.ledger.v1;
+
+import "google/protobuf/timestamp.proto";
+
+// ──────────────────────────────────────────────
+// Credit / wallet operations
+// ──────────────────────────────────────────────
+
+message WalletRequest {
+    string account_id = 1;  // libp2p PeerId
+}
+
+message WalletBalance {
+    string account_id    = 1;
+    double available_nmc = 2;
+    double escrowed_nmc  = 3;
+    double total_nmc     = 4;
+    google.protobuf.Timestamp updated_at = 5;
+}
+
+message DepositRequest {
+    string account_id  = 1;
+    double amount_nmc  = 2;
+    string reference   = 3;  // Stripe payment intent or crypto tx hash
+}
+
+message DepositResponse {
+    bool   ok            = 1;
+    double new_balance   = 2;
+    string transaction_id = 3;
+}
+
+message WithdrawRequest {
+    string account_id     = 1;
+    double amount_nmc     = 2;
+    string dest_address   = 3;  // USDC/ETH address or "fiat:<email>"
+    bytes  signature      = 4;  // Ed25519 sig to authorize withdrawal
+}
+
+message WithdrawResponse {
+    bool   ok             = 1;
+    string transaction_id = 2;
+    string message        = 3;
+}
+
+// ──────────────────────────────────────────────
+// Escrow (locks consumer credits per job)
+// ──────────────────────────────────────────────
+
+message EscrowLockRequest {
+    string job_id        = 1;
+    string consumer_id   = 2;
+    string provider_id   = 3;
+    double amount_nmc    = 4;  // Max possible cost (max_price × max_hours)
+    uint32 max_duration_s = 5;
+}
+
+message EscrowLockResponse {
+    bool   ok         = 1;
+    string escrow_id  = 2;
+    string message    = 3;
+}
+
+message EscrowReleaseRequest {
+    string escrow_id        = 1;
+    string job_id           = 2;
+    uint64 actual_runtime_s = 3;
+    double actual_price_per_h = 4;
+    bytes  provider_signature = 5;  // Ed25519 sig over (job_id || runtime_s || output_hash)
+}
+
+message EscrowReleaseResponse {
+    bool   ok                  = 1;
+    double provider_credited   = 2;
+    double consumer_refunded   = 3;
+    double platform_fee        = 4;
+    string message             = 5;
+}
+
+// ──────────────────────────────────────────────
+// Transaction history
+// ──────────────────────────────────────────────
+
+enum TxType {
+    TX_TYPE_UNSPECIFIED = 0;
+    TX_TYPE_DEPOSIT     = 1;
+    TX_TYPE_WITHDRAW    = 2;
+    TX_TYPE_ESCROW_LOCK = 3;
+    TX_TYPE_ESCROW_RELEASE = 4;
+    TX_TYPE_EARN        = 5;  // Provider earned from job
+    TX_TYPE_FEE         = 6;  // Platform fee deducted
+}
+
+message Transaction {
+    string  tx_id       = 1;
+    string  account_id  = 2;
+    TxType  tx_type     = 3;
+    double  amount_nmc  = 4;
+    string  reference   = 5;  // job_id, escrow_id, or external ref
+    string  description = 6;
+    google.protobuf.Timestamp created_at = 7;
+}
+
+message ListTransactionsRequest {
+    string account_id = 1;
+    uint32 limit      = 2;
+    uint32 offset     = 3;
+    TxType type_filter = 4;
+}
+
+message ListTransactionsResponse {
+    repeated Transaction transactions = 1;
+    uint32 total                      = 2;
+}
+
+// ──────────────────────────────────────────────
+// LedgerService
+// ──────────────────────────────────────────────
+service LedgerService {
+    rpc GetBalance       (WalletRequest)          returns (WalletBalance);
+    rpc Deposit          (DepositRequest)          returns (DepositResponse);
+    rpc Withdraw         (WithdrawRequest)         returns (WithdrawResponse);
+    rpc LockEscrow       (EscrowLockRequest)       returns (EscrowLockResponse);
+    rpc ReleaseEscrow    (EscrowReleaseRequest)    returns (EscrowReleaseResponse);
+    rpc ListTransactions (ListTransactionsRequest) returns (ListTransactionsResponse);
+}

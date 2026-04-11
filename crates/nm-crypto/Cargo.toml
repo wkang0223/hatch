@@ -1,0 +1,20 @@
+[package]
+name = "nm-crypto"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+anyhow    = { workspace = true }
+thiserror = { workspace = true }
+tracing   = { workspace = true }
+serde     = { workspace = true }
+serde_json = { workspace = true }
+hex       = { workspace = true }
+sha2      = { workspace = true }
+rand      = { workspace = true }
+ed25519-dalek = { workspace = true }
+blake3    = { workspace = true }
+nm-common = { workspace = true }
+pqcrypto-dilithium = { workspace = true }
+pqcrypto-traits    = { workspace = true }
+pqcrypto-kyber     = { workspace = true }

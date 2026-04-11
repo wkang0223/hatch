@@ -1,0 +1,28 @@
+# NeuralMesh ONNX + CoreML Runtime
+# ONNX Runtime with CoreML Execution Provider for Apple Silicon.
+# Install: pip3 install -r requirements.txt
+
+# ONNX Runtime (includes CoreML EP for macOS arm64)
+onnxruntime>=1.18.0
+
+# ONNX model format
+onnx>=1.16.0
+onnxmltools>=1.12.0
+
+# CoreML model conversion (optional, for converting models)
+coremltools>=7.2
+
+# Standard ML dependencies
+numpy>=1.26.0
+scipy>=1.13.0
+pillow>=10.3.0
+tqdm>=4.66.0
+
+# Model loading
+huggingface-hub>=0.23.0
+transformers>=4.41.0
+optimum[onnxruntime]>=1.19.0
+
+# Utilities
+requests>=2.31.0
+protobuf>=4.25.0

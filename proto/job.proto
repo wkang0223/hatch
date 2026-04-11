@@ -1,0 +1,148 @@
+syntax = "proto3";
+package neuralmesh.job.v1;
+
+import "google/protobuf/timestamp.proto";
+
+// ──────────────────────────────────────────────
+// Job submission (consumer → coordinator)
+// ──────────────────────────────────────────────
+
+enum Runtime {
+    RUNTIME_UNSPECIFIED = 0;
+    RUNTIME_MLX         = 1;  // Apple MLX framework
+    RUNTIME_TORCH_MPS   = 2;  // PyTorch with Metal Performance Shaders
+    RUNTIME_ONNX_COREML = 3;  // ONNX Runtime with CoreML EP
+    RUNTIME_LLAMA_CPP   = 4;  // llama.cpp Metal backend
+    RUNTIME_SHELL       = 5;  // Plain shell script (restricted)
+}
+
+enum JobState {
+    JOB_STATE_UNSPECIFIED = 0;
+    JOB_STATE_QUEUED      = 1;
+    JOB_STATE_MATCHING    = 2;
+    JOB_STATE_ASSIGNED    = 3;
+    JOB_STATE_RUNNING     = 4;
+    JOB_STATE_MIGRATING   = 5;  // Provider dropped, finding new one
+    JOB_STATE_COMPLETE    = 6;
+    JOB_STATE_FAILED      = 7;
+    JOB_STATE_CANCELLED   = 8;
+}
+
+message JobRequirements {
+    Runtime runtime         = 1;
+    uint32  min_ram_gb      = 2;
+    uint32  max_duration_s  = 3;
+    double  max_price_per_h = 4;  // Max NMC/hour consumer will pay
+    string  preferred_region = 5; // Optional region hint
+    string  chip_model_hint  = 6; // Optional: "M4 Pro" or empty for any
+}
+
+message JobSubmitRequest {
+    string          consumer_id       = 1;  // Consumer's libp2p PeerId
+    JobRequirements requirements      = 2;
+    string          bundle_hash       = 3;  // SHA256 of job tar.gz (pre-uploaded)
+    string          bundle_upload_url = 4;  // Where consumer uploaded the bundle
+    string          consumer_ssh_pubkey = 5;
+    string          consumer_wg_pubkey  = 6;
+    google.protobuf.Timestamp deadline  = 7;
+    map<string, string> env_vars        = 8;
+}
+
+message JobSubmitResponse {
+    string   job_id  = 1;
+    JobState state   = 2;
+    string   message = 3;
+}
+
+// ──────────────────────────────────────────────
+// Job status & listing
+// ──────────────────────────────────────────────
+
+message JobStatusRequest {
+    string job_id      = 1;
+    string consumer_id = 2;
+}
+
+message JobStatus {
+    string   job_id          = 1;
+    JobState state           = 2;
+    string   provider_id     = 3;
+    string   provider_chip   = 4;  // "M4 Pro" etc.
+    uint32   provider_ram_gb = 5;
+    double   price_per_hour  = 6;
+    uint64   elapsed_s       = 7;
+    float    gpu_util_pct    = 8;
+    uint32   ram_used_gb     = 9;
+    double   cost_so_far_nmc = 10;
+    string   wireguard_endpoint = 11;  // For consumer to connect
+    uint32   ssh_port           = 12;
+    google.protobuf.Timestamp started_at   = 13;
+    google.protobuf.Timestamp estimated_end = 14;
+}
+
+message ListJobsRequest {
+    string consumer_id = 1;
+    JobState filter    = 2;  // Filter by state (UNSPECIFIED = all)
+    uint32 limit       = 3;
+    uint32 offset      = 4;
+}
+
+message ListJobsResponse {
+    repeated JobStatus jobs = 1;
+    uint32 total            = 2;
+}
+
+message CancelJobRequest {
+    string job_id      = 1;
+    string consumer_id = 2;
+}
+
+message CancelJobResponse {
+    bool   ok      = 1;
+    string message = 2;
+}
+
+// ──────────────────────────────────────────────
+// GPU/Provider listing (for consumers browsing)
+// ──────────────────────────────────────────────
+
+message ListProvidersRequest {
+    Runtime required_runtime = 1;
+    uint32  min_ram_gb       = 2;
+    string  region           = 3;
+    double  max_price        = 4;
+    uint32  limit            = 5;
+    uint32  offset           = 6;
+}
+
+message ProviderListing {
+    string provider_id     = 1;
+    string chip_model      = 2;
+    uint32 unified_ram_gb  = 3;
+    uint32 gpu_cores       = 4;
+    string metal_version   = 5;
+    repeated string runtimes = 6;
+    uint32 max_job_ram_gb  = 7;
+    double price_per_hour  = 8;
+    string region          = 9;
+    float  trust_score     = 10;  // 0.0–5.0
+    uint32 jobs_completed  = 11;
+    float  success_rate    = 12;  // 0.0–1.0
+    uint32 latency_ms      = 13;  // Round-trip to coordinator
+}
+
+message ListProvidersResponse {
+    repeated ProviderListing providers = 1;
+    uint32 total                       = 2;
+}
+
+// ──────────────────────────────────────────────
+// ConsumerService: Consumer ↔ Coordinator
+// ──────────────────────────────────────────────
+service ConsumerService {
+    rpc SubmitJob     (JobSubmitRequest)    returns (JobSubmitResponse);
+    rpc GetJobStatus  (JobStatusRequest)    returns (JobStatus);
+    rpc ListJobs      (ListJobsRequest)     returns (ListJobsResponse);
+    rpc CancelJob     (CancelJobRequest)    returns (CancelJobResponse);
+    rpc ListProviders (ListProvidersRequest) returns (ListProvidersResponse);
+}

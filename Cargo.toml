@@ -1,0 +1,130 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/nm-proto",
+    "crates/nm-crypto",
+    "crates/nm-wireguard",
+    "crates/nm-macos",
+    "crates/nm-common",
+    "crates/nm-gpu",
+    "agent",
+    "coordinator",
+    "ledger",
+    "cli",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+authors = ["NeuralMesh Contributors"]
+license = "Apache-2.0"
+
+[workspace.dependencies]
+# Async runtime
+tokio = { version = "1.51", features = ["full"] }
+tokio-stream = "0.1"
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.8"
+bincode = "2"
+
+# gRPC / protobuf
+tonic = { version = "0.12", features = ["tls"] }
+prost = "0.13"
+prost-types = "0.13"
+
+# HTTP / REST
+axum = { version = "0.7", features = ["ws"] }
+tower = "0.5"
+tower-http = { version = "0.6", features = ["cors", "trace"] }
+hyper = "1"
+
+# P2P networking
+libp2p = { version = "0.56", features = [
+    "kad",
+    "gossipsub",
+    "identify",
+    "noise",
+    "yamux",
+    "quic",
+    "tcp",
+    "relay",
+    "dcutr",
+    "mdns",
+    "macros",
+    "tokio",
+] }
+
+# NATS messaging
+async-nats = "0.38"
+
+# Database
+sqlx = { version = "0.8", features = ["runtime-tokio", "sqlite", "postgres", "migrate", "uuid", "time"] }
+redis = { version = "0.27", features = ["tokio-comp", "aio"] }
+
+# Crypto
+ring = "0.17"
+ed25519-dalek = { version = "2", features = ["rand_core", "serde"] }
+rand = "0.8"
+sha2 = "0.10"
+hex = "0.4"
+
+# WireGuard
+boringtun = "0.7"
+
+# Networking utils
+quinn = "0.11"
+rustls = "0.23"
+
+# CLI
+clap = { version = "4", features = ["derive", "env"] }
+indicatif = "0.17"
+console = "0.15"
+colored = "2"
+dialoguer = "0.11"
+
+# Error handling
+anyhow = "1"
+thiserror = "2"
+
+# Logging / tracing
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+
+# UUID / time
+uuid = { version = "1", features = ["v4", "serde"] }
+time = { version = "0.3", features = ["serde", "formatting", "parsing"] }
+
+# Config
+config = "0.14"
+dirs = "5"
+
+# Hashing
+blake3 = "1"
+
+# Post-quantum cryptography (NIST FIPS 203/204/205)
+pqcrypto-dilithium = { version = "0.5", features = ["serialization"] }
+pqcrypto-traits = "0.3"
+pqcrypto-kyber = { version = "0.8", features = ["serialization"] }
+
+# Multi-GPU detection
+nvml-wrapper = { version = "0.10" }
+opencl3 = { version = "0.9" }
+
+# nm-gpu local crate
+nm-gpu = { path = "crates/nm-gpu" }
+
+# Local crates
+nm-proto = { path = "crates/nm-proto" }
+nm-crypto = { path = "crates/nm-crypto" }
+nm-wireguard = { path = "crates/nm-wireguard" }
+nm-macos = { path = "crates/nm-macos" }
+nm-common = { path = "crates/nm-common" }
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+strip = true

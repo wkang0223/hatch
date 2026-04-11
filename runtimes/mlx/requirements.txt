@@ -1,0 +1,28 @@
+# NeuralMesh MLX Runtime
+# Apple's ML framework optimized for unified memory on M-series chips.
+# Install: pip3 install -r requirements.txt
+
+# Core MLX — Apple's unified memory ML framework
+mlx>=0.16.0
+mlx-lm>=0.16.0
+
+# Standard ML dependencies
+numpy>=1.26.0
+scipy>=1.13.0
+pillow>=10.3.0
+tqdm>=4.66.0
+
+# Tokenizers and model loading
+transformers>=4.41.0
+tokenizers>=0.19.0
+sentencepiece>=0.2.0
+huggingface-hub>=0.23.0
+
+# Data handling
+datasets>=2.19.0
+safetensors>=0.4.3
+
+# Utilities
+einops>=0.7.0
+regex>=2024.4.16
+requests>=2.31.0

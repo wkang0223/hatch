@@ -1,0 +1,31 @@
+[package]
+name = "neuralmesh-ledger"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "neuralmesh-ledger"
+path = "src/main.rs"
+
+[dependencies]
+nm-common = { workspace = true }
+nm-proto  = { workspace = true }
+nm-crypto = { workspace = true }
+
+tokio      = { workspace = true }
+tonic      = { workspace = true }
+axum       = { workspace = true }
+sqlx       = { workspace = true }
+serde      = { workspace = true }
+serde_json = { workspace = true }
+anyhow     = { workspace = true }
+thiserror  = { workspace = true }
+tracing    = { workspace = true }
+tracing-subscriber = { workspace = true }
+uuid       = { workspace = true }
+time       = { workspace = true }
+clap       = { workspace = true }
+tower-http = { workspace = true }
+rand       = { workspace = true }
+hex        = { workspace = true }
+sha2       = { workspace = true }

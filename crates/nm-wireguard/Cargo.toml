@@ -1,0 +1,15 @@
+[package]
+name = "nm-wireguard"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+anyhow    = { workspace = true }
+thiserror = { workspace = true }
+tracing   = { workspace = true }
+serde     = { workspace = true }
+tokio     = { workspace = true }
+rand      = { workspace = true }
+hex       = { workspace = true }
+boringtun = { version = "0.7", features = [] }
+base64    = "0.22"
