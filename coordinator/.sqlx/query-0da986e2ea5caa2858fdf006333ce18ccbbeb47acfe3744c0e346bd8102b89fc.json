@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE credit_accounts\n        SET available_nmc = available_nmc + (\n              SELECT locked_nmc FROM escrows WHERE job_id = $1 AND state = 'locked' LIMIT 1\n            ),\n            escrowed_nmc = GREATEST(0, escrowed_nmc - (\n              SELECT COALESCE(locked_nmc, 0) FROM escrows WHERE job_id = $1 AND state = 'locked' LIMIT 1\n            )),\n            updated_at = now()\n        WHERE account_id = $2\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "0da986e2ea5caa2858fdf006333ce18ccbbeb47acfe3744c0e346bd8102b89fc"
+}

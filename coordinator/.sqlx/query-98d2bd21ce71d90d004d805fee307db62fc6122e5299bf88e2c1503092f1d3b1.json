@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO kyc_records (\n            account_id, full_name, id_type, id_number_hash,\n            country_code, kyc_level, annual_limit_myr,\n            acknowledged_terms, acknowledged_at, submitted_at\n        ) VALUES ($1, $2, $3, $4, $5, 1, 5000.0, true, now(), now())\n        ON CONFLICT (account_id) DO UPDATE\n            SET full_name       = $2,\n                id_type         = $3,\n                id_number_hash  = $4,\n                country_code    = $5,\n                submitted_at    = now(),\n                archived        = false\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Bpchar"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "98d2bd21ce71d90d004d805fee307db62fc6122e5299bf88e2c1503092f1d3b1"
+}

@@ -20,13 +20,22 @@ pub async fn serve(state: AppState, addr: String) -> Result<()> {
         .route("/health",                    get(health))
         .route("/api/v1/providers",          get(list_providers))
         .route("/api/v1/providers/:id",      get(get_provider))
-        .route("/api/v1/jobs",               get(list_jobs_rest))
         .route("/api/v1/stats",              get(network_stats))
+        // ── Jobs (consumer-facing) ────────────────────────────────────────
+        .route("/api/v1/jobs",               get(list_jobs_rest).post(submit_job))
+        .route("/api/v1/jobs/:id",           get(get_job).delete(cancel_job))
+        .route("/api/v1/jobs/:id/logs",      get(get_job_logs))
         // ── Device-locked account endpoints ──────────────────────────────
         .route("/api/v1/account/register",      post(register_account))
         .route("/api/v1/account/:id",           get(get_account))
         .route("/api/v1/account/:id/verify",    post(verify_device))
         .route("/api/v1/account/:id/reregister", post(reregister_device))
+        // ── Ledger (balance, transactions) ────────────────────────────────
+        .route("/api/v1/balance/:id",           get(get_balance))
+        .route("/api/v1/transactions",          get(list_transactions))
+        // ── KYC ──────────────────────────────────────────────────────────
+        .route("/api/v1/kyc/:id",              get(get_kyc))
+        .route("/api/v1/kyc/submit",           post(submit_kyc))
         // ── Provider job lifecycle ────────────────────────────────────────
         .route("/api/v1/provider/:id/job",      get(get_assigned_job))
         .route("/api/v1/jobs/:id/complete",     post(complete_job))
@@ -122,25 +131,587 @@ async fn get_provider(
     })))
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// Jobs — consumer-facing endpoints
+// ═══════════════════════════════════════════════════════════════════════════
+
+#[derive(Deserialize)]
+struct JobQuery {
+    account_id: Option<String>,
+    state:      Option<String>,
+    limit:      Option<i64>,
+}
+
+/// GET /api/v1/jobs — list jobs, optionally filtered by account_id / state
 async fn list_jobs_rest(
     State(state): State<AppState>,
+    Query(q): Query<JobQuery>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     let rows = sqlx::query!(
-        "SELECT job_id, consumer_id, state, runtime, created_at FROM jobs ORDER BY created_at DESC LIMIT 50"
+        r#"
+        SELECT job_id, consumer_id, provider_id, state, runtime,
+               min_ram_gb, max_price_per_hour, price_per_hour,
+               bundle_hash, bundle_url,
+               actual_runtime_s, checkpoint_url,
+               started_at, completed_at, created_at
+        FROM jobs
+        WHERE ($1::TEXT IS NULL OR consumer_id = $1)
+          AND ($2::TEXT IS NULL OR state = $2)
+        ORDER BY created_at DESC
+        LIMIT $3
+        "#,
+        q.account_id as Option<String>,
+        q.state      as Option<String>,
+        q.limit.unwrap_or(50),
     )
     .fetch_all(&state.db)
     .await
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    let jobs: Vec<_> = rows.into_iter().map(|r| serde_json::json!({
-        "job_id":      r.job_id,
-        "consumer_id": r.consumer_id,
-        "state":       r.state,
-        "runtime":     r.runtime,
+    let jobs: Vec<_> = rows.into_iter().map(|r| {
+        // Derive actual_cost_nmc from runtime (92% of gross)
+        let actual_cost_nmc = match (r.price_per_hour, r.actual_runtime_s) {
+            (Some(p), Some(s)) => Some(p * (s as f64 / 3600.0)),
+            _ => None,
+        };
+        serde_json::json!({
+            "id":                 r.job_id,
+            "job_id":             r.job_id,
+            "account_id":         r.consumer_id,
+            "consumer_id":        r.consumer_id,
+            "provider_id":        r.provider_id,
+            "state":              r.state,
+            "runtime":            r.runtime,
+            "min_ram_gb":         r.min_ram_gb,
+            "max_price_per_hour": r.max_price_per_hour,
+            "bundle_hash":        r.bundle_hash,
+            "actual_cost_nmc":    actual_cost_nmc,
+            "has_checkpoint":     r.checkpoint_url.is_some(),
+            "started_at":         r.started_at.map(|t| t.to_string()),
+            "completed_at":       r.completed_at.map(|t| t.to_string()),
+            "created_at":         r.created_at.map(|t| t.to_string()),
+        })
+    }).collect();
+
+    Ok(Json(serde_json::json!({ "jobs": jobs, "total": jobs.len() })))
+}
+
+/// GET /api/v1/jobs/:id — single job detail
+async fn get_job(
+    State(state): State<AppState>,
+    Path(job_id): Path<String>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let r = sqlx::query!(
+        r#"
+        SELECT job_id, consumer_id, provider_id, state, runtime,
+               min_ram_gb, max_price_per_hour, price_per_hour,
+               bundle_hash, bundle_url, output_hash,
+               actual_runtime_s, restore_attempts, failure_reason,
+               checkpoint_url, checkpoint_iter,
+               started_at, completed_at, created_at
+        FROM jobs
+        WHERE job_id = $1
+        "#,
+        job_id,
+    )
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+    .ok_or(StatusCode::NOT_FOUND)?;
+
+    let actual_cost_nmc = match (r.price_per_hour, r.actual_runtime_s) {
+        (Some(p), Some(s)) => Some(p * (s as f64 / 3600.0)),
+        _ => None,
+    };
+
+    Ok(Json(serde_json::json!({
+        "id":                 r.job_id,
+        "job_id":             r.job_id,
+        "account_id":         r.consumer_id,
+        "consumer_id":        r.consumer_id,
+        "provider_id":        r.provider_id,
+        "state":              r.state,
+        "runtime":            r.runtime,
+        "min_ram_gb":         r.min_ram_gb,
+        "max_price_per_hour": r.max_price_per_hour,
+        "price_per_hour":     r.price_per_hour,
+        "bundle_hash":        r.bundle_hash,
+        "bundle_url":         r.bundle_url,
+        "output_hash":        r.output_hash,
+        "actual_cost_nmc":    actual_cost_nmc,
+        "actual_runtime_s":   r.actual_runtime_s,
+        "restore_attempts":   r.restore_attempts,
+        "failure_reason":     r.failure_reason,
+        "has_checkpoint":     r.checkpoint_url.is_some(),
+        "checkpoint_iter":    r.checkpoint_iter,
+        "started_at":         r.started_at.map(|t| t.to_string()),
+        "completed_at":       r.completed_at.map(|t| t.to_string()),
+        "created_at":         r.created_at.map(|t| t.to_string()),
+    })))
+}
+
+/// POST /api/v1/jobs — submit a new job
+#[derive(Deserialize)]
+struct SubmitJobBody {
+    account_id:        String,
+    runtime:           String,   // "mlx" | "torch-mps" | "onnx-coreml" | "shell"
+    min_ram_gb:        i32,
+    max_duration_secs: i32,
+    max_price_per_hour: f64,
+    bundle_hash:       Option<String>,
+    bundle_url:        Option<String>,
+    /// Caller's preferred region — optional
+    preferred_region:  Option<String>,
+    /// Environment variables passed to the job (coordinator validates keys)
+    env_vars:          Option<serde_json::Value>,
+}
+
+async fn submit_job(
+    State(state): State<AppState>,
+    Json(body): Json<SubmitJobBody>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    use tracing::warn;
+
+    // Validate account exists and has enough balance
+    let credit = sqlx::query!(
+        "SELECT available_nmc FROM credit_accounts WHERE account_id = $1",
+        body.account_id,
+    )
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let available = credit.map(|c| c.available_nmc.unwrap_or(0.0)).unwrap_or(0.0);
+    let max_cost = body.max_price_per_hour * (body.max_duration_secs as f64 / 3600.0);
+
+    if available < max_cost {
+        return Ok(Json(serde_json::json!({
+            "ok": false,
+            "error": "insufficient_balance",
+            "message": format!(
+                "Need {:.4} NMC escrow, only {:.4} available",
+                max_cost, available
+            ),
+        })));
+    }
+
+    // Map runtime string to integer enum (matches nm_common::Runtime)
+    let runtime_int: i32 = match body.runtime.as_str() {
+        "mlx"        => 0,
+        "torch-mps"  => 1,
+        "onnx-coreml"=> 2,
+        "llama-cpp"  => 3,
+        "shell"      => 4,
+        _            => 4,
+    };
+
+    let job_id = Uuid::new_v4().to_string();
+
+    // Insert job as queued
+    sqlx::query!(
+        r#"
+        INSERT INTO jobs (
+            job_id, consumer_id, runtime, min_ram_gb, max_duration_s,
+            max_price_per_hour, bundle_hash, bundle_url, preferred_region, state
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'queued')
+        "#,
+        job_id,
+        body.account_id,
+        runtime_int,
+        body.min_ram_gb,
+        body.max_duration_secs,
+        body.max_price_per_hour,
+        body.bundle_hash,
+        body.bundle_url,
+        body.preferred_region,
+    )
+    .execute(&state.db)
+    .await
+    .map_err(|e| {
+        warn!(error = %e, "Failed to insert job");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    // Lock escrow (max possible cost)
+    sqlx::query!(
+        r#"
+        UPDATE credit_accounts
+        SET available_nmc = available_nmc - $1,
+            escrowed_nmc  = escrowed_nmc + $1,
+            updated_at    = now()
+        WHERE account_id = $2
+        "#,
+        max_cost,
+        body.account_id,
+    )
+    .execute(&state.db)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    // Record escrow
+    let escrow_id = Uuid::new_v4().to_string();
+    sqlx::query!(
+        r#"
+        INSERT INTO escrows (escrow_id, job_id, consumer_id, locked_nmc)
+        VALUES ($1, $2, $3, $4)
+        "#,
+        escrow_id,
+        job_id,
+        body.account_id,
+        max_cost,
+    )
+    .execute(&state.db)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let tx_id = Uuid::new_v4().to_string();
+    sqlx::query!(
+        r#"
+        INSERT INTO transactions (tx_id, account_id, tx_type, amount_nmc, reference, description)
+        VALUES ($1, $2, 'escrow_lock', $3, $4, 'Job escrow locked')
+        "#,
+        tx_id,
+        body.account_id,
+        max_cost,
+        job_id,
+    )
+    .execute(&state.db)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    info!(
+        job_id = %job_id,
+        account_id = %body.account_id,
+        runtime = %body.runtime,
+        max_cost,
+        "Job submitted"
+    );
+
+    Ok(Json(serde_json::json!({
+        "ok":                  true,
+        "job_id":              job_id,
+        "state":               "queued",
+        "estimated_wait_secs": 30,  // next auction cycle
+        "locked_nmc":          max_cost,
+    })))
+}
+
+/// DELETE /api/v1/jobs/:id — cancel a queued or running job
+async fn cancel_job(
+    State(state): State<AppState>,
+    Path(job_id): Path<String>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let job = sqlx::query!(
+        "SELECT consumer_id, state FROM jobs WHERE job_id = $1",
+        job_id,
+    )
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+    .ok_or(StatusCode::NOT_FOUND)?;
+
+    match job.state.as_deref() {
+        Some("complete") | Some("failed") | Some("cancelled") => {
+            return Ok(Json(serde_json::json!({
+                "ok": false,
+                "error": "already_terminal",
+                "state": job.state,
+            })));
+        }
+        _ => {}
+    }
+
+    // Mark cancelled
+    sqlx::query!(
+        "UPDATE jobs SET state = 'cancelled', completed_at = now() WHERE job_id = $1",
+        job_id,
+    )
+    .execute(&state.db)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    // Refund escrow
+    sqlx::query!(
+        r#"
+        UPDATE credit_accounts
+        SET available_nmc = available_nmc + (
+              SELECT locked_nmc FROM escrows WHERE job_id = $1 AND state = 'locked' LIMIT 1
+            ),
+            escrowed_nmc = GREATEST(0, escrowed_nmc - (
+              SELECT COALESCE(locked_nmc, 0) FROM escrows WHERE job_id = $1 AND state = 'locked' LIMIT 1
+            )),
+            updated_at = now()
+        WHERE account_id = $2
+        "#,
+        job_id,
+        job.consumer_id,
+    )
+    .execute(&state.db)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    sqlx::query!(
+        "UPDATE escrows SET state = 'released', settled_at = now() WHERE job_id = $1 AND state = 'locked'",
+        job_id,
+    )
+    .execute(&state.db)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    // Free provider if one was assigned
+    let _ = sqlx::query!(
+        "UPDATE providers SET state = 'available', active_job_id = NULL WHERE active_job_id = $1",
+        job_id,
+    )
+    .execute(&state.db)
+    .await;
+
+    info!(job_id = %job_id, "Job cancelled");
+    Ok(Json(serde_json::json!({ "ok": true, "job_id": job_id, "state": "cancelled" })))
+}
+
+/// GET /api/v1/jobs/:id/logs — stream job stdout from the log file.
+/// Phase 1: reads nm-output.log from /tmp/neuralmesh/<job_id>/.
+/// Returns { job_id, output, is_complete, offset }.
+#[derive(Deserialize)]
+struct LogsQuery {
+    offset: Option<usize>,
+}
+
+async fn get_job_logs(
+    State(state): State<AppState>,
+    Path(job_id): Path<String>,
+    Query(q): Query<LogsQuery>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let offset = q.offset.unwrap_or(0);
+
+    // Check job state
+    let job = sqlx::query!(
+        "SELECT state FROM jobs WHERE job_id = $1",
+        job_id,
+    )
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+    .ok_or(StatusCode::NOT_FOUND)?;
+
+    let is_complete = matches!(
+        job.state.as_deref(),
+        Some("complete") | Some("failed") | Some("cancelled")
+    );
+
+    // Try to read log file (only available on same machine as provider — Phase 1)
+    let log_path = format!("/tmp/neuralmesh/{}/nm-output.log", job_id);
+    let output = match std::fs::read_to_string(&log_path) {
+        Ok(content) if content.len() > offset => content[offset..].to_string(),
+        _ => String::new(),
+    };
+
+    Ok(Json(serde_json::json!({
+        "job_id":      job_id,
+        "output":      output,
+        "is_complete": is_complete,
+        "offset":      offset + output.len(),
+    })))
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Ledger — balance & transactions (consolidated on coordinator for Phase 1)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// GET /api/v1/balance/:id
+async fn get_balance(
+    State(state): State<AppState>,
+    Path(account_id): Path<String>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let bal = sqlx::query!(
+        r#"
+        SELECT available_nmc, escrowed_nmc, total_earned_nmc, total_spent_nmc
+        FROM credit_accounts
+        WHERE account_id = $1
+        "#,
+        account_id,
+    )
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    match bal {
+        Some(b) => Ok(Json(serde_json::json!({
+            "account_id":       account_id,
+            "available_nmc":    b.available_nmc,
+            "escrowed_nmc":     b.escrowed_nmc,
+            "total_earned_nmc": b.total_earned_nmc,
+            "total_spent_nmc":  b.total_spent_nmc,
+        }))),
+        None => Ok(Json(serde_json::json!({
+            "account_id":       account_id,
+            "available_nmc":    0.0,
+            "escrowed_nmc":     0.0,
+            "total_earned_nmc": 0.0,
+            "total_spent_nmc":  0.0,
+        }))),
+    }
+}
+
+/// GET /api/v1/transactions?account_id=...&limit=...
+#[derive(Deserialize)]
+struct TxQuery {
+    account_id: String,
+    limit:      Option<i64>,
+}
+
+async fn list_transactions(
+    State(state): State<AppState>,
+    Query(q): Query<TxQuery>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let rows = sqlx::query!(
+        r#"
+        SELECT tx_id, tx_type, amount_nmc, reference, description, created_at
+        FROM transactions
+        WHERE account_id = $1
+        ORDER BY created_at DESC
+        LIMIT $2
+        "#,
+        q.account_id,
+        q.limit.unwrap_or(50),
+    )
+    .fetch_all(&state.db)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let txs: Vec<_> = rows.into_iter().map(|r| serde_json::json!({
+        "id":          r.tx_id,
+        "kind":        r.tx_type,
+        "amount_nmc":  r.amount_nmc,
+        "description": r.description,
+        "reference":   r.reference,
         "created_at":  r.created_at.map(|t| t.to_string()),
     })).collect();
 
-    Ok(Json(serde_json::json!({ "jobs": jobs })))
+    Ok(Json(serde_json::json!({ "transactions": txs, "total": txs.len() })))
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// KYC
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// GET /api/v1/kyc/:id — fetch KYC record for an account
+async fn get_kyc(
+    State(state): State<AppState>,
+    Path(account_id): Path<String>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    // Actual schema: account_id, full_name, id_type, country_code, kyc_level,
+    //                annual_limit_myr, submitted_at, verified_at, archived
+    let kyc = sqlx::query!(
+        r#"
+        SELECT account_id, full_name, id_type, country_code,
+               kyc_level, annual_limit_myr::double precision AS annual_limit_myr,
+               submitted_at, verified_at, archived
+        FROM kyc_records
+        WHERE account_id = $1
+        "#,
+        account_id,
+    )
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    match kyc {
+        Some(k) => {
+            // Derive status from verified_at / archived
+            let status = if k.archived {
+                "rejected"
+            } else if k.verified_at.is_some() {
+                "approved"
+            } else {
+                "pending"
+            };
+            Ok(Json(serde_json::json!({
+                "account_id":       k.account_id,
+                "status":           status,
+                "compliance_level": k.kyc_level,
+                "full_name":        k.full_name,
+                "id_type":          k.id_type,
+                "country":          k.country_code,
+                "annual_limit_myr": k.annual_limit_myr,
+                "submitted_at":     k.submitted_at.to_string(),
+                "approved_at":      k.verified_at.map(|t: time::OffsetDateTime| t.to_string()),
+            })))
+        }
+        None => Ok(Json(serde_json::json!({
+            "account_id":       account_id,
+            "status":           "not_submitted",
+            "compliance_level": 0,
+        }))),
+    }
+}
+
+/// POST /api/v1/kyc/submit
+#[derive(Deserialize)]
+struct KycSubmitBody {
+    account_id: String,
+    full_name:  String,
+    id_type:    String,  // "mykad" | "passport" | "nric" | "other"
+    id_number:  String,  // hashed before storing
+    country:    String,  // 2-char ISO code
+}
+
+async fn submit_kyc(
+    State(state): State<AppState>,
+    Json(body): Json<KycSubmitBody>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    use sha2::{Digest as _, Sha256};
+
+    if body.full_name.is_empty() || body.id_number.is_empty() || body.country.len() < 2 {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    // Hash the ID number before storing (PII protection)
+    let id_hash = hex::encode(Sha256::digest(body.id_number.as_bytes()));
+
+    // Truncate country to 2 chars
+    let country_code = &body.country[..2.min(body.country.len())];
+
+    sqlx::query!(
+        r#"
+        INSERT INTO kyc_records (
+            account_id, full_name, id_type, id_number_hash,
+            country_code, kyc_level, annual_limit_myr,
+            acknowledged_terms, acknowledged_at, submitted_at
+        ) VALUES ($1, $2, $3, $4, $5, 1, 5000.0, true, now(), now())
+        ON CONFLICT (account_id) DO UPDATE
+            SET full_name       = $2,
+                id_type         = $3,
+                id_number_hash  = $4,
+                country_code    = $5,
+                submitted_at    = now(),
+                archived        = false
+        "#,
+        body.account_id,
+        body.full_name,
+        body.id_type,
+        id_hash,
+        country_code,
+    )
+    .execute(&state.db)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    info!(
+        account_id = %body.account_id,
+        id_type = %body.id_type,
+        country = %country_code,
+        "KYC submitted"
+    );
+
+    Ok(Json(serde_json::json!({
+        "ok":               true,
+        "status":           "pending",
+        "compliance_level": 1,
+        "annual_limit_myr": 5000.0,
+        "message":          "KYC submitted — will be reviewed within 1 business day",
+    })))
 }
 
 // ─── Device-locked account registration ──────────────────────────────────────

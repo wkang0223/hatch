@@ -1,11 +1,9 @@
 // NeuralMesh REST API client for the dashboard.
-// Coordinator = provider registry + job matching.
-// Ledger = NMC credit accounting.
+// All endpoints are served by neuralmesh-coordinator on port 8080.
+// (Phase 1: ledger/balance consolidated on coordinator; no separate ledger service.)
 
 const COORDINATOR =
   process.env.NEXT_PUBLIC_COORDINATOR_URL ?? "http://localhost:8080";
-const LEDGER =
-  process.env.NEXT_PUBLIC_LEDGER_URL ?? "http://localhost:8082";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -26,18 +24,36 @@ export interface Provider {
 
 export interface Job {
   id: string;
+  job_id: string;
   account_id: string;
-  state: "queued" | "matching" | "assigned" | "running" | "complete" | "failed" | "cancelled";
+  consumer_id: string;
+  provider_id?: string;
+  state:
+    | "queued"
+    | "matching"
+    | "assigned"
+    | "running"
+    | "migrating"
+    | "complete"
+    | "failed"
+    | "cancelled";
   runtime: string;
   min_ram_gb: number;
   max_price_per_hour: number;
   bundle_hash?: string;
-  provider_id?: string;
+  bundle_url?: string;
+  output_hash?: string;
+  actual_cost_nmc?: number;
+  actual_runtime_s?: number;
+  has_checkpoint?: boolean;
+  checkpoint_iter?: number;
+  failure_reason?: string;
+  restore_attempts?: number;
+  /** Exit code from the job process (0 = success, non-zero = error) */
+  exit_code?: number;
   created_at: string;
   started_at?: string;
   completed_at?: string;
-  exit_code?: number;
-  actual_cost_nmc?: number;
 }
 
 export interface NetworkStats {
@@ -60,8 +76,10 @@ export interface Transaction {
   id: string;
   kind: string;
   amount_nmc: number;
+  /** Running balance after this transaction — computed client-side from the list */
   balance_after: number;
   description: string;
+  reference?: string;
   created_at: string;
 }
 
@@ -73,19 +91,46 @@ export interface JobSubmitRequest {
   max_price_per_hour: number;
   bundle_hash?: string;
   bundle_url?: string;
-  script_name: string;
+  preferred_region?: string;
+  /** Optional script filename hint for dashboard-submitted jobs (ignored by coordinator) */
+  script_name?: string;
+}
+
+export interface JobSubmitResponse {
+  ok: boolean;
+  job_id: string;
+  state: string;
+  estimated_wait_secs: number;
+  locked_nmc: number;
+  error?: string;
+  message?: string;
 }
 
 export interface JobLogs {
   job_id: string;
   output: string;
   is_complete: boolean;
+  offset: number;
+}
+
+export interface KycRecord {
+  account_id: string;
+  status: "not_submitted" | "pending" | "approved" | "rejected";
+  compliance_level: number;
+  full_name?: string;
+  id_type?: string;
+  country?: string;
+  annual_limit_myr?: number;
+  annual_deposited_myr?: number;
+  submitted_at?: string;
+  approved_at?: string;
+  rejection_reason?: string;
 }
 
 // ── Fetch helpers ─────────────────────────────────────────────────────────────
 
 async function get<T>(url: string): Promise<T> {
-  const res = await fetch(url, { next: { revalidate: 0 } });
+  const res = await fetch(url, { cache: "no-store" });
   if (!res.ok) throw new Error(`GET ${url} → ${res.status}`);
   return res.json();
 }
@@ -95,6 +140,7 @@ async function post<T>(url: string, body: unknown): Promise<T> {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
+    cache: "no-store",
   });
   if (!res.ok) {
     const err = await res.text();
@@ -104,11 +150,11 @@ async function post<T>(url: string, body: unknown): Promise<T> {
 }
 
 async function del(url: string): Promise<void> {
-  const res = await fetch(url, { method: "DELETE" });
+  const res = await fetch(url, { method: "DELETE", cache: "no-store" });
   if (!res.ok) throw new Error(`DELETE ${url} → ${res.status}`);
 }
 
-// ── Coordinator API ────────────────────────────────────────────────────────────
+// ── API ───────────────────────────────────────────────────────────────────────
 
 export interface ProviderListParams {
   min_ram_gb?: number;
@@ -116,16 +162,19 @@ export interface ProviderListParams {
   max_price?: number;
   sort?: string;
   limit?: number;
+  region?: string;
 }
 
 export const api = {
-  // Providers
-  async listProviders(params: ProviderListParams = {}): Promise<{ providers: Provider[]; total: number }> {
+  // ── Providers ──────────────────────────────────────────────────────────────
+
+  async listProviders(
+    params: ProviderListParams = {}
+  ): Promise<{ providers: Provider[]; total: number }> {
     const q = new URLSearchParams();
-    if (params.min_ram_gb) q.set("min_ram_gb", String(params.min_ram_gb));
+    if (params.min_ram_gb) q.set("min_ram", String(params.min_ram_gb));
     if (params.runtime)    q.set("runtime", params.runtime);
-    if (params.max_price)  q.set("max_price", String(params.max_price));
-    q.set("sort",  params.sort  ?? "price");
+    if (params.region)     q.set("region",  params.region);
     q.set("limit", String(params.limit ?? 50));
     return get(`${COORDINATOR}/api/v1/providers?${q}`);
   },
@@ -134,13 +183,19 @@ export const api = {
     return get(`${COORDINATOR}/api/v1/providers/${id}`);
   },
 
-  // Network stats
+  // ── Network stats ──────────────────────────────────────────────────────────
+
   async getStats(): Promise<NetworkStats> {
     return get(`${COORDINATOR}/api/v1/stats`);
   },
 
-  // Jobs
-  async listJobs(accountId: string, limit = 20, state?: string): Promise<{ jobs: Job[]; total: number }> {
+  // ── Jobs ───────────────────────────────────────────────────────────────────
+
+  async listJobs(
+    accountId: string,
+    limit = 20,
+    state?: string
+  ): Promise<{ jobs: Job[]; total: number }> {
     const q = new URLSearchParams({ account_id: accountId, limit: String(limit) });
     if (state) q.set("state", state);
     return get(`${COORDINATOR}/api/v1/jobs?${q}`);
@@ -150,7 +205,9 @@ export const api = {
     return get(`${COORDINATOR}/api/v1/jobs/${id}`);
   },
 
-  async submitJob(req: JobSubmitRequest): Promise<{ job_id: string; state: string; estimated_wait_secs: number }> {
+  async submitJob(
+    req: JobSubmitRequest
+  ): Promise<JobSubmitResponse> {
     return post(`${COORDINATOR}/api/v1/jobs`, req);
   },
 
@@ -162,12 +219,65 @@ export const api = {
     return get(`${COORDINATOR}/api/v1/jobs/${id}/logs?offset=${offset}`);
   },
 
-  // Ledger
+  // ── Ledger (on coordinator, Phase 1) ──────────────────────────────────────
+
   async getBalance(accountId: string): Promise<Balance> {
-    return get(`${LEDGER}/api/v1/balance/${accountId}`);
+    return get(`${COORDINATOR}/api/v1/balance/${accountId}`);
   },
 
-  async listTransactions(accountId: string, limit = 20): Promise<{ transactions: Transaction[]; total: number }> {
-    return get(`${LEDGER}/api/v1/transactions?account_id=${accountId}&limit=${limit}`);
+  async listTransactions(
+    accountId: string,
+    limit = 20
+  ): Promise<{ transactions: Transaction[]; total: number }> {
+    return get(
+      `${COORDINATOR}/api/v1/transactions?account_id=${accountId}&limit=${limit}`
+    );
+  },
+
+  // ── KYC ────────────────────────────────────────────────────────────────────
+
+  async getKyc(accountId: string): Promise<KycRecord> {
+    return get(`${COORDINATOR}/api/v1/kyc/${accountId}`);
+  },
+
+  async submitKyc(data: {
+    account_id: string;
+    full_name: string;
+    id_type: string;
+    id_number: string;
+    country: string;
+  }): Promise<{ ok: boolean; status: string; message: string }> {
+    return post(`${COORDINATOR}/api/v1/kyc/submit`, data);
+  },
+
+  // ── Account ────────────────────────────────────────────────────────────────
+
+  async registerAccount(data: {
+    ecdsa_pubkey_hex: string;
+    device_fingerprint_hash: string;
+    device_label?: string;
+    platform?: string;
+  }): Promise<{ ok: boolean; account_id: string; error?: string }> {
+    return post(`${COORDINATOR}/api/v1/account/register`, data);
+  },
+
+  async getAccount(
+    accountId: string
+  ): Promise<{
+    account_id: string;
+    device_label?: string;
+    platform?: string;
+    role?: string;
+    active?: boolean;
+    balance?: Balance;
+  }> {
+    return get(`${COORDINATOR}/api/v1/account/${accountId}`);
+  },
+
+  async verifyDevice(
+    accountId: string,
+    data: { device_fingerprint_hash: string; ecdsa_pubkey_hex: string }
+  ): Promise<{ ok: boolean; verified: boolean; reason?: string }> {
+    return post(`${COORDINATOR}/api/v1/account/${accountId}/verify`, data);
   },
 };

@@ -130,7 +130,15 @@ export default function WalletPage() {
     ])
       .then(([bal, { transactions }]) => {
         setBalance(bal);
-        setTxns(transactions);
+        // Compute running balance_after for each transaction (newest first)
+        // Start from current available + total_spent and walk backwards
+        let running = (bal.available_nmc ?? 0) + (bal.escrowed_nmc ?? 0);
+        const withBalance = transactions.map((tx) => {
+          const result = { ...tx, balance_after: running };
+          running -= tx.amount_nmc; // reverse out this tx
+          return result;
+        });
+        setTxns(withBalance);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
