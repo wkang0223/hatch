@@ -354,19 +354,21 @@ export default function WalletPage() {
     const amt = parseFloat(withdrawAmt);
     if (isNaN(amt) || amt <= 0) { toast.error("Enter a valid amount"); return; }
     try {
-      const res = await fetch(`/api/ledger/v1/withdraw`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          account_id: accountId,
-          destination_address: withdrawAddr,
-          amount_nmc: amt,
-          chain,
-        }),
+      const data = await api.withdraw({
+        account_id:          accountId,
+        destination_address: withdrawAddr,
+        amount_nmc:          amt,
+        chain:               chain as "arbitrum" | "solana",
       });
-      if (!res.ok) { toast.error(await res.text()); return; }
-      const data = await res.json();
-      toast.success(`Withdrawal submitted: ${(data.tx_id ?? "").slice(0, 12)}…`);
+      if (!data.ok) {
+        toast.error(data.error ?? "Withdrawal failed");
+        return;
+      }
+      toast.success(
+        data.tx_id
+          ? `Withdrawal submitted: ${data.tx_id.slice(0, 12)}…`
+          : (data.message ?? "Withdrawal queued successfully")
+      );
     } catch {
       toast.error("Withdrawal unavailable — use: nm wallet withdraw from CLI");
     }

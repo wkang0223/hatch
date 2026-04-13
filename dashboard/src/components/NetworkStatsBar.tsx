@@ -2,48 +2,63 @@
 
 import { useEffect, useState } from "react";
 import { Cpu, Activity, Database, Zap } from "lucide-react";
+import { api, type NetworkStats } from "@/lib/api-client";
 
-interface Stats {
-  available_providers: number;
-  active_providers: number;
-  total_available_ram_gb: number;
-  running_jobs: number;
-  completed_jobs: number;
-}
-
-// Mock fallback while API is unreachable
-const MOCK: Stats = {
-  available_providers: 0,
-  active_providers: 0,
+// Zero-state fallback shown before the first API response
+const EMPTY: NetworkStats = {
+  available_providers:    0,
+  active_providers:       0,
   total_available_ram_gb: 0,
-  running_jobs: 0,
-  completed_jobs: 0,
+  running_jobs:           0,
+  completed_jobs:         0,
 };
 
 export default function NetworkStatsBar() {
-  const [stats, setStats] = useState<Stats>(MOCK);
+  const [stats,  setStats]  = useState<NetworkStats>(EMPTY);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    fetch("/api/coordinator/v1/stats")
-      .then((r) => (r.ok ? r.json() : MOCK))
-      .then((data) => { setStats(data); setLoaded(true); })
-      .catch(() => setLoaded(true));
+    let cancelled = false;
 
-    const id = setInterval(() => {
-      fetch("/api/coordinator/v1/stats")
-        .then((r) => (r.ok ? r.json() : null))
-        .then((data) => { if (data) setStats(data); })
-        .catch(() => {});
-    }, 15_000);
-    return () => clearInterval(id);
+    async function fetchStats() {
+      try {
+        const data = await api.getStats();
+        if (!cancelled) { setStats(data); setLoaded(true); }
+      } catch {
+        if (!cancelled) setLoaded(true); // show zeros rather than spinner forever
+      }
+    }
+
+    fetchStats();
+    const id = setInterval(fetchStats, 15_000);
+    return () => { cancelled = true; clearInterval(id); };
   }, []);
 
   const items = [
-    { icon: Cpu,      label: "Available providers", value: loaded ? stats.available_providers : "—", color: "text-brand-400" },
-    { icon: Database, label: "Total GPU memory",     value: loaded ? `${stats.total_available_ram_gb} GB` : "—", color: "text-purple-400" },
-    { icon: Activity, label: "Running jobs",         value: loaded ? stats.running_jobs : "—", color: "text-green-400" },
-    { icon: Zap,      label: "Completed jobs",       value: loaded ? stats.completed_jobs.toLocaleString() : "—", color: "text-yellow-400" },
+    {
+      icon:  Cpu,
+      label: "Available providers",
+      value: loaded ? stats.available_providers : "—",
+      color: "text-brand-400",
+    },
+    {
+      icon:  Database,
+      label: "Total GPU memory",
+      value: loaded ? `${stats.total_available_ram_gb} GB` : "—",
+      color: "text-purple-400",
+    },
+    {
+      icon:  Activity,
+      label: "Running jobs",
+      value: loaded ? stats.running_jobs : "—",
+      color: "text-green-400",
+    },
+    {
+      icon:  Zap,
+      label: "Completed jobs",
+      value: loaded ? stats.completed_jobs.toLocaleString() : "—",
+      color: "text-yellow-400",
+    },
   ];
 
   return (

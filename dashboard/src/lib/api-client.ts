@@ -113,6 +113,20 @@ export interface JobLogs {
   offset: number;
 }
 
+export interface WithdrawRequest {
+  account_id:          string;
+  destination_address: string;
+  amount_nmc:          number;
+  chain:               "arbitrum" | "solana";
+}
+
+export interface WithdrawResponse {
+  ok:     boolean;
+  tx_id?: string;
+  error?: string;
+  message?: string;
+}
+
 export interface KycRecord {
   account_id: string;
   status: "not_submitted" | "pending" | "approved" | "rejected";
@@ -279,5 +293,11 @@ export const api = {
     data: { device_fingerprint_hash: string; ecdsa_pubkey_hex: string }
   ): Promise<{ ok: boolean; verified: boolean; reason?: string }> {
     return post(`${COORDINATOR}/api/v1/account/${accountId}/verify`, data);
+  },
+
+  // ── Withdraw ───────────────────────────────────────────────────────────────
+
+  async withdraw(req: WithdrawRequest): Promise<WithdrawResponse> {
+    return post(`${COORDINATOR}/api/v1/withdraw`, req);
   },
 };

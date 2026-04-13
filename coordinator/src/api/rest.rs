@@ -42,6 +42,8 @@ pub async fn serve(state: AppState, addr: String) -> Result<()> {
         .route("/api/v1/jobs/:id/fail",         post(fail_job))
         .route("/api/v1/jobs/:id/checkpoint",   post(save_checkpoint))
         .route("/api/v1/jobs/:id/heartbeat",    post(job_heartbeat))
+        // ── Withdraw ──────────────────────────────────────────────────────
+        .route("/api/v1/withdraw",              post(withdraw))
         // ── Ledger (Stripe webhook credits) ──────────────────────────────
         .route("/api/v1/ledger/stripe-credit",  post(stripe_credit))
         .layer(CorsLayer::permissive())
@@ -1517,4 +1519,99 @@ async fn job_heartbeat(
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     Ok(Json(serde_json::json!({ "ok": true })))
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Withdraw — queue an off-chain NMC withdrawal to an external wallet.
+// Phase 1: queued for manual batch processing (no live on-chain bridge yet).
+// Phase 3: will trigger NMCToken.burn() + cross-chain bridge automatically.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// POST /api/v1/withdraw
+#[derive(Deserialize)]
+struct WithdrawBody {
+    account_id:          String,
+    destination_address: String,
+    amount_nmc:          f64,
+    chain:               String,  // "arbitrum" | "solana"
+}
+
+async fn withdraw(
+    State(state): State<AppState>,
+    Json(body):   Json<WithdrawBody>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    if body.amount_nmc <= 0.0 {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    // Validate destination address format
+    let is_eth = body.destination_address.starts_with("0x")
+        && body.destination_address.len() == 42;
+    let is_sol = body.destination_address.len() >= 32
+        && body.destination_address.len() <= 44
+        && !body.destination_address.starts_with("0x");
+
+    if !is_eth && !is_sol {
+        return Ok(Json(serde_json::json!({
+            "ok":    false,
+            "error": "invalid_address",
+            "message": "Provide a valid Ethereum (0x…) or Solana address",
+        })));
+    }
+
+    // Check balance — use runtime query() to avoid needing a sqlx offline cache entry
+    let bal: f64 = sqlx::query_scalar(
+        "SELECT COALESCE(available_nmc, 0.0) FROM credit_accounts WHERE account_id = $1"
+    )
+    .bind(&body.account_id)
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+    .unwrap_or(0.0_f64);
+
+    if bal < body.amount_nmc {
+        return Ok(Json(serde_json::json!({
+            "ok":    false,
+            "error": "insufficient_balance",
+            "message": format!("Available: {:.4} NMC, requested: {:.4}", bal, body.amount_nmc),
+        })));
+    }
+
+    // Deduct from balance — runtime query, no offline cache needed
+    sqlx::query(
+        "UPDATE credit_accounts SET available_nmc = available_nmc - $1, updated_at = now() WHERE account_id = $2"
+    )
+    .bind(body.amount_nmc)
+    .bind(&body.account_id)
+    .execute(&state.db)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    // Record the withdrawal transaction
+    let tx_id = Uuid::new_v4().to_string();
+    sqlx::query(
+        "INSERT INTO transactions (tx_id, account_id, tx_type, amount_nmc, reference, description) VALUES ($1, $2, 'withdrawal', $3, $4, 'Withdrawal request queued')"
+    )
+    .bind(&tx_id)
+    .bind(&body.account_id)
+    .bind(-body.amount_nmc)
+    .bind(&body.destination_address)
+    .execute(&state.db)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    info!(
+        account_id  = %body.account_id,
+        amount_nmc  = body.amount_nmc,
+        destination = %body.destination_address,
+        chain       = %body.chain,
+        tx_id       = %tx_id,
+        "Withdrawal queued"
+    );
+
+    Ok(Json(serde_json::json!({
+        "ok":     true,
+        "tx_id":  tx_id,
+        "message": "Withdrawal queued — processed within 24 hours to your on-chain address",
+    })))
 }

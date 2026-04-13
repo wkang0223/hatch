@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { ShieldCheck, AlertTriangle, CheckCircle, FileText, Lock } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { api } from "@/lib/api-client";
 
 // BNM-mandated terms the user must acknowledge
 const TERMS = [
@@ -55,24 +56,16 @@ export default function CompliancePage() {
 
     setSubmitting(true);
     try {
-      const res = await fetch("/api/coordinator/v1/kyc/submit", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          account_id: accountId,
-          country_code: country,
-          full_name: fullName.trim(),
-          id_type: idType,
-          // Raw ID number never sent to server — hash it client-side
-          id_number_hash: await hashIdNumber(idNumber.trim(), accountId),
-          acknowledged_terms: true,
-        }),
-      });
+      // Hash the ID number client-side — raw number never leaves the browser
+      const hashedId = await hashIdNumber(idNumber.trim(), accountId!);
 
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error ?? "Submission failed");
-      }
+      await api.submitKyc({
+        account_id: accountId!,
+        full_name:  fullName.trim(),
+        id_type:    idType,
+        id_number:  hashedId,    // coordinator hashes again server-side for double protection
+        country:    country,
+      });
 
       setStep("done");
       toast.success("Verification submitted successfully");
@@ -83,7 +76,7 @@ export default function CompliancePage() {
     }
   }
 
-  // Hash ID number client-side so raw number never leaves the browser
+  // SHA-256 hash the ID number client-side — raw PII never transmitted over the wire
   async function hashIdNumber(id: string, salt: string): Promise<string> {
     const data = new TextEncoder().encode(id + "|" + salt);
     const hash = await crypto.subtle.digest("SHA-256", data);
