@@ -1,14 +1,21 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useAccount, useReadContract } from "wagmi";
 import { api, type Balance, type Transaction } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
 import {
   DollarSign, TrendingUp, TrendingDown, Lock, Plus, ArrowUpRight,
-  ShieldCheck, Cpu, Zap, ExternalLink, Copy, CheckCheck, AlertCircle,
+  ShieldCheck, Cpu, Zap, Copy, CheckCheck, AlertCircle,
+  ArrowDownToLine, Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { ComplianceGate } from "@/components/ComplianceGate";
+import { ConnectWallet } from "@/components/ConnectWallet";
+import {
+  CONTRACT_ADDRESSES, NMC_ABI, REGISTRY_ABI, PROVIDER_NFT_ABI,
+  hasContracts, formatNmc, tierLabel, tierColor, shortAddr, activeChain,
+} from "@/lib/web3";
 
 // ── On-chain chain selector ───────────────────────────────────────────────────
 type Chain = "solana" | "arbitrum";
@@ -72,33 +79,202 @@ function ProviderNftCard({ chain }: { chain: Chain }) {
   );
 }
 
-// ─── On-chain wallet section ──────────────────────────────────────────────────
+// ─── On-chain wallet section (wagmi-powered) ─────────────────────────────────
+
 function OnChainSection({ chain }: { chain: Chain }) {
+  const { address, isConnected } = useAccount();
+  const isArbitrum = chain === "arbitrum";
+
+  // Read on-chain NMC balance + staking tier + provider NFT (only on Arbitrum)
+  const nmcResult = useReadContract({
+    address:  CONTRACT_ADDRESSES.nmc,
+    abi:      NMC_ABI,
+    functionName: "balanceOf",
+    args:     address ? [address] : undefined,
+    query:    { enabled: isConnected && isArbitrum && hasContracts && !!address },
+  });
+
+  const tierResult = useReadContract({
+    address:  CONTRACT_ADDRESSES.registry,
+    abi:      REGISTRY_ABI,
+    functionName: "tierOf",
+    args:     address ? [address] : undefined,
+    query:    { enabled: isConnected && isArbitrum && hasContracts && !!address },
+  });
+
+  const isProviderResult = useReadContract({
+    address:  CONTRACT_ADDRESSES.nft,
+    abi:      PROVIDER_NFT_ABI,
+    functionName: "isProvider",
+    args:     address ? [address] : undefined,
+    query:    { enabled: isConnected && isArbitrum && hasContracts && !!address },
+  });
+
+  const providerRecord = useReadContract({
+    address:  CONTRACT_ADDRESSES.registry,
+    abi:      REGISTRY_ABI,
+    functionName: "providers",
+    args:     address ? [address] : undefined,
+    query:    { enabled: isConnected && isArbitrum && hasContracts && !!address },
+  });
+
+  const nmcBalance  = nmcResult.data as bigint | undefined;
+  const tier        = tierResult.data as number | undefined;
+  const isProvider  = isProviderResult.data as boolean | undefined;
+  const stakeInfo   = providerRecord.data as readonly [bigint, bigint, bigint, number, boolean, `0x${string}`] | undefined;
+
+  const explorerBase = activeChain.blockExplorers?.default.url ?? "https://sepolia.arbiscan.io";
+
+  // ── Solana (off-chain bridge only) ──────────────────────────────────────────
+  if (!isArbitrum) {
+    return (
+      <div className="glass rounded-xl p-5 glow-border">
+        <div className="text-xs text-slate-500 uppercase tracking-wider mb-3">
+          On-chain NMC · Solana
+        </div>
+        <div className="flex items-center gap-3">
+          <AlertCircle className="h-5 w-5 text-yellow-400 flex-shrink-0" />
+          <div>
+            <p className="text-sm text-slate-300">Solana bridge in development</p>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Use the CLI: <code className="font-mono text-slate-400">nm wallet bridge-in &lt;amount&gt; --chain solana</code>
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Arbitrum — disconnected ─────────────────────────────────────────────────
+  if (!isConnected) {
+    return (
+      <div className="glass rounded-xl p-5 glow-border">
+        <div className="flex items-start justify-between flex-wrap gap-4">
+          <div>
+            <div className="text-xs text-slate-500 uppercase tracking-wider mb-3">
+              On-chain NMC · {activeChain.name}
+            </div>
+            <p className="text-sm text-slate-300 mb-1">Connect a wallet to see your on-chain NMC balance.</p>
+            <p className="text-xs text-slate-500">
+              Providers: staking tier, soul-bound NFT, and slashing history visible once connected.
+            </p>
+          </div>
+          <QuantumBadge verified={false} />
+        </div>
+        <div className="mt-4">
+          <ConnectWallet />
+        </div>
+      </div>
+    );
+  }
+
+  // ── Arbitrum — connected ────────────────────────────────────────────────────
+  const isLoading = nmcResult.isLoading || tierResult.isLoading;
+
   return (
-    <div className="glass rounded-xl p-5 glow-border">
+    <div className="glass rounded-xl p-5 glow-border space-y-4">
+      {/* Header */}
       <div className="flex items-start justify-between flex-wrap gap-4">
         <div>
           <div className="text-xs text-slate-500 uppercase tracking-wider mb-1">
-            On-chain NMC · {chain === "solana" ? "Solana" : "Arbitrum One"}
+            On-chain NMC · {activeChain.name}
           </div>
-          <div className="flex items-center gap-3 mt-2">
-            <AlertCircle className="h-5 w-5 text-yellow-400 flex-shrink-0" />
-            <div>
-              <p className="text-sm text-slate-300">No wallet connected</p>
-              <p className="text-xs text-slate-500 mt-0.5">
-                {chain === "solana"
-                  ? "Use the nm CLI: nm wallet bridge-in <amount> --chain solana"
-                  : "Use the nm CLI: nm wallet bridge-in <amount> --chain arbitrum"}
-              </p>
-            </div>
-          </div>
-          <p className="text-xs text-slate-600 mt-3">
-            Web wallet adapters (Phantom, MetaMask) will be integrated in the next release.
-            Until then, manage on-chain NMC via the <code className="font-mono">nm</code> CLI.
-          </p>
+          <ConnectWallet className="mt-2" />
         </div>
-        <QuantumBadge verified={false} />
+        <QuantumBadge verified={!!isProvider} />
       </div>
+
+      {/* Balance + Tier row */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {/* NMC balance */}
+        <div className="bg-slate-900/50 rounded-lg p-3 col-span-2 sm:col-span-2">
+          <div className="text-xs text-slate-500 mb-1">Wallet balance</div>
+          {isLoading ? (
+            <Loader2 className="h-5 w-5 text-slate-600 animate-spin" />
+          ) : (
+            <div className="text-2xl font-bold font-mono text-brand-400">
+              {nmcBalance !== undefined ? formatNmc(nmcBalance) : "—"}
+              <span className="text-sm font-normal text-slate-500 ml-1.5">NMC</span>
+            </div>
+          )}
+        </div>
+
+        {/* Staking tier */}
+        <div className="bg-slate-900/50 rounded-lg p-3">
+          <div className="text-xs text-slate-500 mb-1">Stake tier</div>
+          {isLoading ? (
+            <Loader2 className="h-4 w-4 text-slate-600 animate-spin" />
+          ) : (
+            <div className={cn(
+              "text-sm font-semibold border rounded-full px-2 py-0.5 inline-block",
+              tierColor(tier ?? 0)
+            )}>
+              {tier !== undefined ? `T${tier} · ${tierLabel(tier)}` : "—"}
+            </div>
+          )}
+        </div>
+
+        {/* Staked amount */}
+        <div className="bg-slate-900/50 rounded-lg p-3">
+          <div className="text-xs text-slate-500 mb-1">Staked NMC</div>
+          {isLoading ? (
+            <Loader2 className="h-4 w-4 text-slate-600 animate-spin" />
+          ) : (
+            <div className="text-sm font-mono text-slate-300">
+              {stakeInfo ? formatNmc(stakeInfo[0]) : "—"}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Unbonding notice */}
+      {stakeInfo && stakeInfo[1] > 0n && (
+        <div className="flex items-center gap-2 text-xs text-amber-400 bg-amber-500/10 rounded-lg px-3 py-2">
+          <ArrowDownToLine className="h-3.5 w-3.5 flex-shrink-0" />
+          <span>
+            {formatNmc(stakeInfo[1])} NMC unbonding — claimable{" "}
+            {new Date(Number(stakeInfo[2]) * 1000).toLocaleDateString()}
+          </span>
+        </div>
+      )}
+
+      {/* Provider NFT status */}
+      {isProvider !== undefined && (
+        <div className={cn(
+          "flex items-center gap-2 text-xs rounded-lg px-3 py-2",
+          isProvider
+            ? "bg-emerald-500/10 text-emerald-400"
+            : "bg-slate-800/50 text-slate-500"
+        )}>
+          <Cpu className="h-3.5 w-3.5 flex-shrink-0" />
+          {isProvider
+            ? "Soul-bound ProviderNFT minted — active in job matching"
+            : "No ProviderNFT. Run: nm provider register to mint one"}
+        </div>
+      )}
+
+      {/* Contract links */}
+      {hasContracts && (
+        <div className="flex flex-wrap gap-3 text-xs text-slate-600 pt-1">
+          {[
+            { label: "NMCToken", addr: CONTRACT_ADDRESSES.nmc },
+            { label: "Escrow",   addr: CONTRACT_ADDRESSES.escrow },
+            { label: "Registry", addr: CONTRACT_ADDRESSES.registry },
+          ].map(({ label, addr }) =>
+            addr ? (
+              <a
+                key={label}
+                href={`${explorerBase}/address/${addr}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:text-slate-400 transition-colors underline underline-offset-2"
+              >
+                {label}↗
+              </a>
+            ) : null
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -218,9 +394,12 @@ export default function WalletPage() {
               Off-chain credits &amp; on-chain NMC token · Quantum-resistant attestation
             </p>
           </div>
-          <div className="flex gap-2">
-            <ChainTab chain="solana"   active={chain === "solana"}   onClick={() => setChain("solana")} />
-            <ChainTab chain="arbitrum" active={chain === "arbitrum"} onClick={() => setChain("arbitrum")} />
+          <div className="flex items-center gap-3">
+            <div className="flex gap-2">
+              <ChainTab chain="solana"   active={chain === "solana"}   onClick={() => setChain("solana")} />
+              <ChainTab chain="arbitrum" active={chain === "arbitrum"} onClick={() => setChain("arbitrum")} />
+            </div>
+            {chain === "arbitrum" && <ConnectWallet />}
           </div>
         </div>
 

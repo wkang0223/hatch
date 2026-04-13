@@ -29,3 +29,8 @@ tower-http = { workspace = true }
 rand       = { workspace = true }
 hex        = { workspace = true }
 sha2       = { workspace = true }
+
+# On-chain settlement (Phase 3) — minimal deps, no alloy (serde compat issues)
+k256    = { version = "0.13", features = ["ecdsa", "sha256"] }
+sha3    = "0.10"
+reqwest = { workspace = true }

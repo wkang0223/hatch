@@ -12,7 +12,7 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use tower_http::cors::CorsLayer;
-use tracing::info;
+use tracing::{info, warn};
 use uuid::Uuid;
 
 pub async fn serve(state: AppState, addr: String) -> Result<()> {
@@ -1154,20 +1154,42 @@ async fn complete_job(
     // Update trust score (reputation)
     update_trust_score(&state.db, &body.provider_id, true).await;
 
+    // ── Phase 3: on-chain escrow release ─────────────────────────────────────
+    // Spawned in background — coordinator does not block on chain confirmation.
+    // The oracle is a no-op when NM_LEDGER_URL + INTERNAL_SECRET are absent.
+    if state.oracle.enabled {
+        let oracle   = std::sync::Arc::clone(&state.oracle);
+        let jid      = job_id.clone();
+        let cost_nmc = gross_nmc;
+        tokio::spawn(async move {
+            match oracle.release_escrow(&jid, cost_nmc).await {
+                Ok(Some(tx)) => info!(job_id = %jid, tx_hash = %tx, "On-chain escrow released"),
+                Ok(None)     => { /* ledger disabled */ }
+                Err(e)       => warn!(
+                    job_id = %jid,
+                    error  = %e,
+                    "On-chain release failed — off-chain credit already settled"
+                ),
+            }
+        });
+    }
+
     info!(
         job_id = %job_id,
         provider_id = %body.provider_id,
         gross_nmc,
         provider_nmc,
         platform_nmc,
+        on_chain = state.oracle.enabled,
         "Job completed — credits transferred"
     );
 
     Ok(Json(serde_json::json!({
-        "ok": true,
-        "gross_nmc":    gross_nmc,
-        "provider_nmc": provider_nmc,
-        "platform_nmc": platform_nmc,
+        "ok":            true,
+        "gross_nmc":     gross_nmc,
+        "provider_nmc":  provider_nmc,
+        "platform_nmc":  platform_nmc,
+        "on_chain":      state.oracle.enabled,
     })))
 }
 
@@ -1220,6 +1242,19 @@ async fn fail_job(
     // Slash trust score if provider fault
     if body.slash {
         update_trust_score(&state.db, &body.provider_id, false).await;
+    }
+
+    // Phase 3: cancel on-chain escrow (full consumer refund)
+    if state.oracle.enabled {
+        let oracle = std::sync::Arc::clone(&state.oracle);
+        let jid    = job_id.clone();
+        tokio::spawn(async move {
+            match oracle.cancel_escrow(&jid).await {
+                Ok(Some(tx)) => info!(job_id = %jid, tx_hash = %tx, "On-chain escrow cancelled"),
+                Ok(None)     => {}
+                Err(e)       => warn!(job_id = %jid, error = %e, "On-chain cancel failed"),
+            }
+        });
     }
 
     info!(job_id = %job_id, reason = %body.reason, slash = body.slash, "Job failed");

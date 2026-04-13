@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { Toaster } from "sonner";
 import Navbar from "@/components/Navbar";
+import { Web3Provider } from "@/components/Web3Provider";
 
 export const metadata: Metadata = {
   title: "NeuralMesh — Decentralized Apple Silicon GPU Marketplace",
@@ -24,8 +25,10 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <body className="min-h-screen bg-surface-950 text-slate-100 antialiased">
-        <Navbar />
-        <main>{children}</main>
+        <Web3Provider>
+          <Navbar />
+          <main>{children}</main>
+        </Web3Provider>
         <Toaster
           position="bottom-right"
           theme="dark"

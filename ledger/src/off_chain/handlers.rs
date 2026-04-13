@@ -234,12 +234,13 @@ pub async fn release_escrow(
     .ok_or(StatusCode::NOT_FOUND)?;
 
     let actual_hours = body.actual_runtime_s as f64 / 3600.0;
-    let actual_cost  = (body.actual_price_per_hour * actual_hours).min(escrow.locked_nmc.unwrap_or(0.0));
+    let locked = escrow.locked_nmc;
+    let actual_cost  = (body.actual_price_per_hour * actual_hours).min(locked);
     let fee          = actual_cost * 0.08; // 8% platform fee
     let provider_gets = actual_cost - fee; // provider receives 92%
-    let consumer_refund = escrow.locked_nmc.unwrap_or(0.0) - actual_cost;
+    let consumer_refund = locked - actual_cost;
 
-    let consumer_id = escrow.consumer_id.unwrap_or_default();
+    let consumer_id = escrow.consumer_id;
     let provider_id = escrow.provider_id.unwrap_or_default();
 
     // Release escrow: debit escrowed from consumer, credit provider

@@ -3,6 +3,7 @@
 mod api;
 mod db;
 mod matching;
+mod on_chain;
 mod p2p;
 mod queue;
 mod reputation;
@@ -10,6 +11,7 @@ mod reputation;
 use anyhow::Result;
 use clap::Parser;
 use sqlx::postgres::PgPoolOptions;
+use std::sync::Arc;
 use tracing::{info, warn};
 
 #[derive(Parser, Debug)]
@@ -29,6 +31,9 @@ struct Cli {
     rest_addr: String,
     #[arg(long, default_value = "info")]
     log_level: String,
+    /// Ledger service URL for on-chain settlement forwarding (Phase 3, optional)
+    #[arg(long, env = "NM_LEDGER_URL")]
+    ledger_url: Option<String>,
 }
 
 #[tokio::main]
@@ -76,11 +81,15 @@ async fn main() -> Result<()> {
         None
     };
 
+    // Phase 3: on-chain settlement oracle (no-op when NM_ESCROW_ADDRESS unset)
+    let oracle = Arc::new(on_chain::SettlementOracle::from_env());
+
     // Shared app state
     let state = api::AppState {
-        db: db.clone(),
-        nats: nats.clone(),
+        db:     db.clone(),
+        nats:   nats.clone(),
         redis,
+        oracle,
     };
 
     // Start background services in parallel
