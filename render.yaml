@@ -1,10 +1,53 @@
+# Railway / Render deployment reference
+# Railway: create services manually in the dashboard using settings below.
+#
+# ── Service 1: neuralmesh-coordinator ────────────────────────────────────────
+# Source:      GitHub repo root (/)
+# Dockerfile:  infrastructure/Dockerfile.coordinator
+# Port:        8080
+# Health:      /health
+# Env vars:
+#   DATABASE_URL     = (attach Railway Postgres)
+#   INTERNAL_SECRET  = (generate: openssl rand -hex 32)
+#   NM_LEDGER_URL    = https://<ledger-service>.railway.app
+#   RUST_LOG         = info
+#   SQLX_OFFLINE     = true
+#   REST_ADDR        = 0.0.0.0:8080
+#   GRPC_ADDR        = 0.0.0.0:9090
+#   PLATFORM_FEE_PCT = 8
+#
+# ── Service 2: neuralmesh-ledger ──────────────────────────────────────────────
+# Source:      GitHub repo root (/)
+# Dockerfile:  infrastructure/Dockerfile.ledger
+# Port:        8082
+# Env vars:
+#   DATABASE_URL     = (attach same Railway Postgres)
+#   INTERNAL_SECRET  = (same value as coordinator)
+#   RUST_LOG         = info
+#   SQLX_OFFLINE     = true
+#   REST_ADDR        = 0.0.0.0:8082
+#   PLATFORM_FEE_PCT = 8
+#
+# ── Service 3: neuralmesh-dashboard ───────────────────────────────────────────
+# Source:      GitHub repo /dashboard subdirectory
+# Dockerfile:  dashboard/Dockerfile   (auto-detected from root dir)
+# Port:        3000
+# Build args:
+#   NEXT_PUBLIC_COORDINATOR_URL = https://<coordinator-service>.railway.app
+#   NEXT_PUBLIC_LEDGER_URL      = https://<ledger-service>.railway.app
+#
+# ── Database ──────────────────────────────────────────────────────────────────
+# Add a Railway Postgres plugin to the project.
+# Attach it to coordinator + ledger (they share the same DB).
+# Migrations run automatically on coordinator startup (sqlx::migrate!).
+
 services:
   - type: web
     name: neuralmesh-coordinator
     runtime: docker
     dockerfilePath: ./infrastructure/Dockerfile.coordinator
     dockerContext: .
-    plan: free
+    plan: starter
     envVars:
       - key: DATABASE_URL
         fromDatabase:
@@ -12,13 +55,56 @@ services:
           property: connectionString
       - key: RUST_LOG
         value: info
-      - key: NM_REDIS_URL
-        sync: false   # paste Upstash Redis URL here in Render dashboard
-      # NM_NATS_URL — leave unset to use DB polling fallback (free tier)
+      - key: SQLX_OFFLINE
+        value: "true"
+      - key: REST_ADDR
+        value: "0.0.0.0:8080"
+      - key: GRPC_ADDR
+        value: "0.0.0.0:9090"
+      - key: PLATFORM_FEE_PCT
+        value: "8"
+      - key: INTERNAL_SECRET
+        sync: false
+      - key: NM_LEDGER_URL
+        sync: false
     healthCheckPath: /health
+
+  - type: web
+    name: neuralmesh-ledger
+    runtime: docker
+    dockerfilePath: ./infrastructure/Dockerfile.ledger
+    dockerContext: .
+    plan: starter
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: neuralmesh-db
+          property: connectionString
+      - key: RUST_LOG
+        value: info
+      - key: SQLX_OFFLINE
+        value: "true"
+      - key: REST_ADDR
+        value: "0.0.0.0:8082"
+      - key: PLATFORM_FEE_PCT
+        value: "8"
+      - key: INTERNAL_SECRET
+        sync: false
+
+  - type: web
+    name: neuralmesh-dashboard
+    runtime: docker
+    dockerfilePath: ./dashboard/Dockerfile
+    dockerContext: ./dashboard
+    plan: starter
+    envVars:
+      - key: NEXT_PUBLIC_COORDINATOR_URL
+        sync: false
+      - key: NEXT_PUBLIC_LEDGER_URL
+        sync: false
 
 databases:
   - name: neuralmesh-db
-    plan: free
+    plan: starter
     databaseName: neuralmesh
     user: neuralmesh
