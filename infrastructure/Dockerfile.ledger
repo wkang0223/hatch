@@ -16,7 +16,9 @@ COPY coordinator/ coordinator/
 COPY agent/ agent/
 COPY ledger/ ledger/
 COPY cli/ cli/
+COPY .sqlx/ .sqlx/
 
+ENV SQLX_OFFLINE=true
 RUN cargo build --release -p neuralmesh-ledger
 
 # Runtime stage

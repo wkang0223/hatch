@@ -1,0 +1,40 @@
+# Fly.io config — NeuralMesh Dashboard (Next.js)
+# Deploy from the dashboard/ directory:
+#   fly deploy --app neuralmesh-dashboard
+#
+# NEXT_PUBLIC_COORDINATOR_URL is baked into the JS bundle at build time.
+# Update the build arg below to match your coordinator's public Fly URL.
+
+app            = "neuralmesh-dashboard"
+primary_region = "sin"
+kill_signal    = "SIGTERM"
+kill_timeout   = "15s"
+
+[build]
+  dockerfile = "Dockerfile"
+
+  [build.args]
+    # Baked into the browser bundle — must be the PUBLIC coordinator URL
+    NEXT_PUBLIC_COORDINATOR_URL = "https://neuralmesh-coordinator.fly.dev"
+    NEXT_PUBLIC_LEDGER_URL      = "https://neuralmesh-ledger.fly.dev"
+
+[env]
+  NODE_ENV = "production"
+  PORT     = "3000"
+  HOSTNAME = "0.0.0.0"
+
+[http_service]
+  internal_port        = 3000
+  force_https          = true
+  auto_stop_machines   = "stop"
+  auto_start_machines  = true
+  min_machines_running = 1
+
+  [http_service.concurrency]
+    type       = "requests"
+    hard_limit = 100
+    soft_limit = 80
+
+[[vm]]
+  size   = "shared-cpu-1x"
+  memory = "512mb"

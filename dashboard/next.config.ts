@@ -1,5 +1,15 @@
 import type { NextConfig } from "next";
 
+const COORDINATOR_URL =
+  process.env.COORDINATOR_URL ??
+  process.env.NEXT_PUBLIC_COORDINATOR_URL ??
+  "http://localhost:8080";
+
+const LEDGER_URL =
+  process.env.LEDGER_URL ??
+  process.env.NEXT_PUBLIC_LEDGER_URL ??
+  "http://localhost:8082";
+
 const nextConfig: NextConfig = {
   output: "standalone",
   // Proxy API requests to coordinator and ledger during dev
@@ -7,17 +17,17 @@ const nextConfig: NextConfig = {
     return [
       {
         source: "/api/coordinator/:path*",
-        destination: `${process.env.COORDINATOR_URL ?? "http://localhost:8080"}/api/:path*`,
+        destination: `${COORDINATOR_URL}/api/:path*`,
       },
       {
         source: "/api/ledger/:path*",
-        destination: `${process.env.LEDGER_URL ?? "http://localhost:8082"}/api/:path*`,
+        destination: `${LEDGER_URL}/api/:path*`,
       },
     ];
   },
   env: {
-    NEXT_PUBLIC_COORDINATOR_URL: process.env.COORDINATOR_URL ?? "http://localhost:8080",
-    NEXT_PUBLIC_LEDGER_URL: process.env.LEDGER_URL ?? "http://localhost:8082",
+    NEXT_PUBLIC_COORDINATOR_URL: COORDINATOR_URL,
+    NEXT_PUBLIC_LEDGER_URL: LEDGER_URL,
   },
 };
 

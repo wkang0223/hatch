@@ -1,0 +1,48 @@
+# Fly.io config — NeuralMesh Coordinator
+# Deploy: fly deploy -c fly.coordinator.toml --app neuralmesh-coordinator
+#
+# Secrets to set before first deploy:
+#   fly secrets set DATABASE_URL="postgres://..." INTERNAL_SECRET="..." -a neuralmesh-coordinator
+
+app            = "neuralmesh-coordinator"
+primary_region = "sin"   # Singapore — closest to Malaysia
+kill_signal    = "SIGTERM"
+kill_timeout   = "30s"
+
+[build]
+  dockerfile = "infrastructure/Dockerfile.coordinator"
+  # Build context is the repo root (Dockerfile needs access to all crates)
+
+[env]
+  RUST_LOG         = "info"
+  SQLX_OFFLINE     = "true"
+  REST_ADDR        = "0.0.0.0:8080"
+  GRPC_ADDR        = "0.0.0.0:9090"
+  PLATFORM_FEE_PCT = "8"
+  # NM_LEDGER_URL — set via: fly secrets set NM_LEDGER_URL="https://neuralmesh-ledger.fly.dev" -a neuralmesh-coordinator
+  # INTERNAL_SECRET — set via secrets (shared with ledger)
+  # DATABASE_URL    — set via secrets or fly postgres attach
+
+[http_service]
+  internal_port        = 8080
+  force_https          = true
+  auto_stop_machines   = "stop"
+  auto_start_machines  = true
+  min_machines_running = 1        # Keep alive — runs the matching engine + heartbeat watcher
+
+  [http_service.concurrency]
+    type       = "connections"
+    hard_limit = 50
+    soft_limit = 40
+
+# gRPC port for agent connections (nm agent register/job assignment)
+[[services]]
+  internal_port = 9090
+  protocol      = "tcp"
+
+  [[services.ports]]
+    port = 9090
+
+[[vm]]
+  size   = "shared-cpu-1x"
+  memory = "512mb"
