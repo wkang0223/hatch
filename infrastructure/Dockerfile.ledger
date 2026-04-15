@@ -1,7 +1,7 @@
-# Build stage — rust:1.86 (requires Cargo edition2024 support)
-FROM rust:1.86-slim-bookworm@sha256:57d415bbd61ce11e2d5f73de068103c7bd9f3188dc132c97cef4a8f62989e944 AS builder
+# Build stage — rust:1.88+ required by time@0.3.47, home@0.5.12
+FROM rust:1.88-slim-bookworm AS builder
 
-RUN rustup show && apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y \
     protobuf-compiler \
     pkg-config \
     libssl-dev \
