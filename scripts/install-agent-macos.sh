@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# NeuralMesh Provider Installer for macOS (Apple Silicon)
+# Hatch Provider Installer for macOS (Apple Silicon)
 #
 # Usage (one-liner):
-#   curl -fsSL https://install.neuralmesh.io | bash
+#   curl -fsSL https://raw.githubusercontent.com/wkang0223/neuralmesh/master/scripts/install-agent-macos.sh | bash
 #
 # Or run directly:
 #   chmod +x install-agent-macos.sh && ./install-agent-macos.sh
@@ -10,21 +10,22 @@
 # What this does:
 #   1. Checks macOS version and Apple Silicon chip
 #   2. Installs Homebrew (if missing)
-#   3. Installs Python 3 and ML runtimes (MLX, PyTorch MPS, ONNX)
-#   4. Downloads the neuralmesh-agent and nm CLI binaries
-#   5. Creates the neuralmesh_worker isolation user
+#   3. Installs Python 3.12 and ML runtimes (MLX, PyTorch MPS, ONNX)
+#   4. Downloads the hatch-agent and hatch CLI binaries
+#   5. Creates the hatch_worker isolation user
 #   6. Installs the launchd daemon (auto-starts on boot)
-#   7. Prints the provider invite link
+#   7. Prints next steps
 
 set -euo pipefail
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 
-NM_VERSION="${NM_VERSION:-latest}"
-NM_INSTALL_DIR="/usr/local/bin"
-NM_LOG_DIR="/var/log/neuralmesh"
-NM_CONFIG_DIR="$HOME/.config/neuralmesh"
-NM_TMP_DIR="/tmp/neuralmesh"
+NM_VERSION="${NM_VERSION:-v0.2.1}"
+NM_INSTALL_DIR="/opt/homebrew/bin"
+NM_LOG_DIR="/var/log/hatch"
+# macOS config dir: ~/Library/Application Support/hatch
+NM_CONFIG_DIR="$HOME/Library/Application Support/hatch"
+NM_TMP_DIR="/tmp/hatch"
 NM_GITHUB_ORG="wkang0223"
 NM_GITHUB_REPO="neuralmesh"
 RELEASE_BASE="https://github.com/${NM_GITHUB_ORG}/${NM_GITHUB_REPO}/releases"
@@ -51,12 +52,12 @@ require_cmd() {
 # ── Banner ────────────────────────────────────────────────────────────────────
 
 echo ""
-echo -e "${CYAN}${BOLD}"
-echo "  _   _                      _ __  __           _     "
-echo " | \ | | ___ _   _ _ __ __ _| |  \/  | ___  ___| |__  "
-echo " |  \| |/ _ \ | | | '__/ _\` | | |\/| |/ _ \/ __| '_ \ "
-echo " | |\  |  __/ |_| | | | (_| | | |  | |  __/\__ \ | | |"
-echo " |_| \_|\___|\__,_|_|  \__,_|_|_|  |_|\___||___/_| |_|"
+echo -e "${YELLOW}${BOLD}"
+echo "  _   _       _       _     "
+echo " | | | | __ _| |_ ___| |__  "
+echo " | |_| |/ _\` | __/ __| '_ \ "
+echo " |  _  | (_| | || (__| | | |"
+echo " |_| |_|\__,_|\__\___|_| |_|"
 echo ""
 echo " Provider Installer — Apple Silicon Edition"
 echo -e "${RESET}"
@@ -110,18 +111,20 @@ if ! command -v brew &>/dev/null; then
 fi
 success "Homebrew $(brew --version | head -1 | awk '{print $2}')"
 
-# ── Python 3 ─────────────────────────────────────────────────────────────────
+# ── Python 3.12 ──────────────────────────────────────────────────────────────
+# MLX and PyTorch MPS require Python 3.9–3.12. Python 3.13+ is not yet
+# supported by the ML ecosystem. We always install and use Python 3.12.
 
-info "Checking Python 3..."
-if ! command -v python3 &>/dev/null; then
-    info "Installing Python 3..."
+info "Checking Python 3.12..."
+if ! command -v python3.12 &>/dev/null; then
+    info "Installing Python 3.12 via Homebrew (MLX/PyTorch require ≤ 3.12)..."
     brew install python@3.12
 fi
-PYTHON_VER="$(python3 --version 2>&1)"
+PYTHON_VER="$(python3.12 --version 2>&1)"
 success "$PYTHON_VER"
 
-# Ensure pip is available
-python3 -m ensurepip --upgrade &>/dev/null || true
+PIP="python3.12 -m pip"
+$PIP install --upgrade pip --quiet 2>/dev/null || true
 
 # ── ML Runtimes ───────────────────────────────────────────────────────────────
 
@@ -132,10 +135,10 @@ install_pip() {
     local pkg="$1"
     local name="${2:-$1}"
     info "  Installing $name..."
-    if pip3 install --quiet --upgrade "$pkg" 2>/dev/null; then
+    if $PIP install --quiet --upgrade "$pkg" 2>/dev/null; then
         success "  $name"
     else
-        warn "  $name install failed — skipping (can retry with: pip3 install $pkg)"
+        warn "  $name install failed — skipping (retry: python3.12 -m pip install $pkg)"
     fi
 }
 
@@ -151,7 +154,7 @@ install_pip "onnxruntime" "ONNX Runtime (CoreML EP)"
 
 # llama.cpp with Metal
 info "  Installing llama-cpp-python (Metal)..."
-if CMAKE_ARGS="-DGGML_METAL=on" FORCE_CMAKE=1 pip3 install --quiet llama-cpp-python 2>/dev/null; then
+if CMAKE_ARGS="-DGGML_METAL=on" FORCE_CMAKE=1 $PIP install --quiet llama-cpp-python 2>/dev/null; then
     success "  llama-cpp-python (Metal)"
 else
     warn "  llama-cpp-python Metal install failed — skipping"
@@ -162,32 +165,32 @@ install_pip "transformers huggingface-hub safetensors numpy" "ML utilities"
 
 echo ""
 
-# ── neuralmesh_worker user ────────────────────────────────────────────────────
+# ── hatch_worker user ─────────────────────────────────────────────────────────
 
-info "Setting up isolation user (neuralmesh_worker)..."
-if id "neuralmesh_worker" &>/dev/null; then
-    success "neuralmesh_worker user already exists"
+info "Setting up isolation user (hatch_worker)..."
+if id "hatch_worker" &>/dev/null; then
+    success "hatch_worker user already exists"
 else
-    # Find an unused UID in the 400–499 range
-    WORKER_UID=450
+    # Find an unused UID in the 450–499 range
+    WORKER_UID=451
     while dscl . -list /Users UniqueID | awk '{print $2}' | grep -q "^${WORKER_UID}$"; do
         WORKER_UID=$(( WORKER_UID + 1 ))
     done
 
-    sudo dscl . -create /Users/neuralmesh_worker
-    sudo dscl . -create /Users/neuralmesh_worker UserShell /usr/bin/false
-    sudo dscl . -create /Users/neuralmesh_worker RealName "NeuralMesh Worker"
-    sudo dscl . -create /Users/neuralmesh_worker UniqueID "$WORKER_UID"
-    sudo dscl . -create /Users/neuralmesh_worker PrimaryGroupID 20
-    sudo dscl . -create /Users/neuralmesh_worker NFSHomeDirectory /tmp/neuralmesh
-    success "Created neuralmesh_worker (UID $WORKER_UID)"
+    sudo dscl . -create /Users/hatch_worker
+    sudo dscl . -create /Users/hatch_worker UserShell /usr/bin/false
+    sudo dscl . -create /Users/hatch_worker RealName "Hatch Worker"
+    sudo dscl . -create /Users/hatch_worker UniqueID "$WORKER_UID"
+    sudo dscl . -create /Users/hatch_worker PrimaryGroupID 20
+    sudo dscl . -create /Users/hatch_worker NFSHomeDirectory "$NM_TMP_DIR"
+    success "Created hatch_worker (UID $WORKER_UID)"
 fi
 
 # ── Working directories ────────────────────────────────────────────────────────
 
 info "Creating working directories..."
 sudo mkdir -p "$NM_TMP_DIR"
-sudo chown "neuralmesh_worker:staff" "$NM_TMP_DIR"
+sudo chown "hatch_worker:staff" "$NM_TMP_DIR" 2>/dev/null || sudo chown "$(id -un):staff" "$NM_TMP_DIR"
 sudo chmod 750 "$NM_TMP_DIR"
 
 sudo mkdir -p "$NM_LOG_DIR"
@@ -196,17 +199,12 @@ success "Directories ready"
 # ── Download binaries ─────────────────────────────────────────────────────────
 
 echo ""
-info "Downloading NeuralMesh binaries..."
+info "Downloading Hatch binaries (${NM_VERSION})..."
 
 download_binary() {
     local name="$1"
     local dest="$2"
-
-    if [[ "$NM_VERSION" == "latest" ]]; then
-        local url="${RELEASE_BASE}/latest/download/${name}-darwin-arm64"
-    else
-        local url="${RELEASE_BASE}/download/${NM_VERSION}/${name}-darwin-arm64"
-    fi
+    local url="${RELEASE_BASE}/download/${NM_VERSION}/${name}-darwin-arm64"
 
     info "  Downloading $name..."
     if curl -fsSL "$url" -o "/tmp/${name}" 2>/dev/null; then
@@ -215,12 +213,12 @@ download_binary() {
         success "  $name → $dest"
     else
         warn "  Could not download $name from $url"
-        warn "  Build from source: cargo build --release -p $name"
+        warn "  Build from source: cargo build --release -p neuralmesh-cli && cargo build --release -p hatch-agent"
     fi
 }
 
-download_binary "neuralmesh-agent" "${NM_INSTALL_DIR}/neuralmesh-agent"
-download_binary "nm" "${NM_INSTALL_DIR}/nm"
+download_binary "hatch"       "${NM_INSTALL_DIR}/hatch"
+download_binary "hatch-agent" "${NM_INSTALL_DIR}/hatch-agent"
 
 # ── Configuration ─────────────────────────────────────────────────────────────
 
@@ -230,8 +228,8 @@ mkdir -p "$NM_CONFIG_DIR"
 AGENT_CONFIG="$NM_CONFIG_DIR/agent.toml"
 if [[ ! -f "$AGENT_CONFIG" ]]; then
     cat > "$AGENT_CONFIG" <<EOF
-# NeuralMesh Agent Configuration
-# Edit then run: nm provider start
+# Hatch Agent Configuration
+# Edit then run: hatch provider start
 
 # Offer GPU when idle for this many minutes (screen locked, GPU < threshold)
 idle_duration_minutes = 10
@@ -239,7 +237,7 @@ idle_duration_minutes = 10
 # GPU utilization % threshold to consider "idle"
 idle_threshold_pct = 5.0
 
-# Minimum price per hour you'll accept (NMC)
+# Minimum price per hour you'll accept (HC)
 floor_price_nmc_per_hour = 0.05
 
 # Maximum RAM to offer per job (GB). Default: 80% of total.
@@ -278,23 +276,23 @@ fi
 echo ""
 info "Installing launchd daemon (auto-start on boot)..."
 
-PLIST_PATH="/Library/LaunchDaemons/io.neuralmesh.agent.plist"
+PLIST_PATH="/Library/LaunchDaemons/io.hatch.agent.plist"
 if [[ -f "$PLIST_PATH" ]]; then
     sudo launchctl unload -w "$PLIST_PATH" 2>/dev/null || true
 fi
 
-cat > "/tmp/io.neuralmesh.agent.plist" <<EOF
+cat > "/tmp/io.hatch.agent.plist" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
   "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>io.neuralmesh.agent</string>
+    <string>io.hatch.agent</string>
 
     <key>ProgramArguments</key>
     <array>
-        <string>${NM_INSTALL_DIR}/neuralmesh-agent</string>
+        <string>${NM_INSTALL_DIR}/hatch-agent</string>
         <string>--config</string>
         <string>${NM_CONFIG_DIR}/agent.toml</string>
     </array>
@@ -312,38 +310,38 @@ cat > "/tmp/io.neuralmesh.agent.plist" <<EOF
     <string>${NM_LOG_DIR}/agent-error.log</string>
 
     <key>WorkingDirectory</key>
-    <string>/tmp/neuralmesh</string>
+    <string>/tmp/hatch</string>
 
     <key>EnvironmentVariables</key>
     <dict>
         <key>NM_ACCOUNT_ID</key>
         <string>${ACCOUNT_ID}</string>
         <key>RUST_LOG</key>
-        <string>neuralmesh_agent=info</string>
+        <string>hatch_agent=info</string>
     </dict>
 </dict>
 </plist>
 EOF
 
-sudo mv "/tmp/io.neuralmesh.agent.plist" "$PLIST_PATH"
+sudo mv "/tmp/io.hatch.agent.plist" "$PLIST_PATH"
 sudo chown root:wheel "$PLIST_PATH"
 sudo chmod 644 "$PLIST_PATH"
 
-if [[ -f "${NM_INSTALL_DIR}/neuralmesh-agent" ]]; then
+if [[ -f "${NM_INSTALL_DIR}/hatch-agent" ]]; then
     sudo launchctl load -w "$PLIST_PATH"
     success "Agent daemon installed and started"
 else
-    warn "Agent binary not found — daemon installed but not started"
-    warn "Build with: cargo build --release -p neuralmesh-agent"
+    warn "hatch-agent binary not found — daemon installed but not started"
+    warn "Build with: cargo build --release -p hatch-agent"
     warn "Then: sudo launchctl load -w $PLIST_PATH"
 fi
 
 # ── Done ───────────────────────────────────────────────────────────────────────
 
 echo ""
-echo -e "${GREEN}${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
-echo -e "${GREEN}${BOLD}  NeuralMesh Provider Setup Complete!${RESET}"
-echo -e "${GREEN}${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
+echo -e "${YELLOW}${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
+echo -e "${YELLOW}${BOLD}  Hatch Provider Setup Complete!${RESET}"
+echo -e "${YELLOW}${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
 echo ""
 echo -e "  ${BOLD}Your Mac:${RESET}        $CHIP (${RAM_GB}GB unified memory)"
 echo -e "  ${BOLD}Account ID:${RESET}      $ACCOUNT_ID"
@@ -351,15 +349,15 @@ echo -e "  ${BOLD}Config:${RESET}          $AGENT_CONFIG"
 echo -e "  ${BOLD}Logs:${RESET}            tail -f $NM_LOG_DIR/agent.log"
 echo ""
 echo -e "  ${CYAN}Next steps:${RESET}"
-echo -e "    ${CYAN}nm provider status${RESET}          — check if agent is running"
-echo -e "    ${CYAN}nm provider config --idle-minutes 5${RESET}  — reduce idle time"
-echo -e "    ${CYAN}nm wallet balance${RESET}            — check your NMC balance"
-echo -e "    ${CYAN}nm gpu benchmark${RESET}             — verify ML runtimes work"
+echo -e "    ${CYAN}hatch provider status${RESET}                — check if agent is running"
+echo -e "    ${CYAN}hatch provider config --idle-minutes 5${RESET}  — reduce idle time"
+echo -e "    ${CYAN}hatch wallet balance${RESET}                 — check your HC balance"
+echo -e "    ${CYAN}hatch gpu benchmark${RESET}                  — verify ML runtimes work"
 echo ""
 echo -e "  Your Mac will offer idle GPU time to the network when:"
 echo -e "    • Screen is locked"
 echo -e "    • GPU utilization < 5% for 10+ minutes"
 echo ""
-echo -e "  ${YELLOW}To stop:${RESET}  nm provider stop"
-echo -e "  ${YELLOW}To uninstall:${RESET}  sudo launchctl unload $PLIST_PATH"
+echo -e "  ${YELLOW}To stop:${RESET}      hatch provider stop"
+echo -e "  ${YELLOW}To uninstall:${RESET} sudo launchctl unload $PLIST_PATH"
 echo ""
