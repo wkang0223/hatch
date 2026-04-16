@@ -1,4 +1,4 @@
-//! `nm wallet` subcommands.
+//! `hatch wallet` subcommands.
 
 use crate::client::ClientContext;
 use anyhow::{Context, Result};
@@ -8,21 +8,21 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Subcommand)]
 pub enum WalletCmd {
-    /// Show NMC credit balance
+    /// Show HC credit balance
     Balance,
-    /// Deposit NMC credits (generates payment link)
+    /// Deposit HC credits (generates payment link)
     Deposit {
-        /// Amount of NMC credits to deposit
+        /// Amount of HC credits to deposit
         amount: f64,
         /// Payment method: stripe (default), crypto
         #[arg(long, default_value = "stripe")]
         method: String,
     },
-    /// Withdraw NMC credits to crypto address
+    /// Withdraw HC credits to crypto address
     Withdraw {
         /// Destination address (ETH/USDC on Arbitrum)
         address: String,
-        /// Amount of NMC to withdraw
+        /// Amount of HC to withdraw
         amount: f64,
     },
     /// Show transaction history
@@ -132,19 +132,19 @@ async fn show_balance(ctx: &ClientContext) -> Result<()> {
         return Ok(());
     }
 
-    println!("{}", "NMC Wallet".bold().cyan());
+    println!("{}", "HC Wallet".bold().cyan());
     println!("─────────────────────────────────────────");
     println!("  Account:      {}", bal.account_id.yellow());
-    println!("  Available:    {} NMC", format!("{:.4}", bal.available_nmc).green().bold());
+    println!("  Available:    {} HC", format!("{:.4}", bal.available_nmc).green().bold());
     if bal.escrowed_nmc > 0.0 {
-        println!("  In escrow:    {} NMC  (reserved for active jobs)", format!("{:.4}", bal.escrowed_nmc).yellow());
+        println!("  In escrow:    {} HC  (reserved for active jobs)", format!("{:.4}", bal.escrowed_nmc).yellow());
     }
     println!("─────────────────────────────────────────");
-    println!("  Total earned: {} NMC", format!("{:.4}", bal.total_earned_nmc).blue());
-    println!("  Total spent:  {} NMC", format!("{:.4}", bal.total_spent_nmc).normal());
+    println!("  Total earned: {} HC", format!("{:.4}", bal.total_earned_nmc).blue());
+    println!("  Total spent:  {} HC", format!("{:.4}", bal.total_spent_nmc).normal());
     println!();
-    println!("  Add credits:    {}", "nm wallet deposit 50".cyan());
-    println!("  Cash out:       {}", "nm wallet withdraw <eth-address> <amount>".cyan());
+    println!("  Add credits:    {}", "hatch wallet deposit 50".cyan());
+    println!("  Cash out:       {}", "hatch wallet withdraw <eth-address> <amount>".cyan());
 
     Ok(())
 }
@@ -174,9 +174,9 @@ async fn deposit(ctx: &ClientContext, amount: f64, method: &str) -> Result<()> {
 
     let dep: DepositResponse = resp.json().await.context("Invalid deposit response")?;
 
-    println!("{}", "Deposit NMC Credits".bold().cyan());
+    println!("{}", "Deposit HC Credits".bold().cyan());
     println!("─────────────────────────────────────────");
-    println!("  Amount:     {} NMC", format!("{:.2}", dep.amount_nmc).green().bold());
+    println!("  Amount:     {} HC", format!("{:.2}", dep.amount_nmc).green().bold());
 
     match method {
         "stripe" => {
@@ -223,7 +223,7 @@ async fn withdraw(ctx: &ClientContext, address: &str, amount: f64) -> Result<()>
         anyhow::bail!("Invalid Ethereum address. Expected 0x... (42 chars)");
     }
 
-    println!("Withdrawing {} NMC to {}...", format!("{:.4}", amount).green(), address.yellow());
+    println!("Withdrawing {} HC to {}...", format!("{:.4}", amount).green(), address.yellow());
 
     let req = WithdrawRequest {
         dest_address: address.to_string(),
@@ -252,7 +252,7 @@ async fn withdraw(ctx: &ClientContext, address: &str, amount: f64) -> Result<()>
     println!("{} Withdrawal submitted", "✓".green());
     println!("─────────────────────────────────────────");
     println!("  TX ID:    {}", w.tx_id.cyan());
-    println!("  Amount:   {} NMC", format!("{:.4}", w.amount_nmc).green());
+    println!("  Amount:   {} HC", format!("{:.4}", w.amount_nmc).green());
     println!("  To:       {}", w.destination.yellow());
     println!("  Status:   {}", w.status.yellow());
     println!();

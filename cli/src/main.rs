@@ -65,7 +65,7 @@ enum Commands {
         #[command(subcommand)]
         action: commands::gpu::GpuCmd,
     },
-    /// Manage your NMC credit wallet
+    /// Manage your HC credit wallet
     Wallet {
         #[command(subcommand)]
         action: commands::wallet::WalletCmd,

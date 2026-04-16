@@ -1,4 +1,4 @@
-//! `nm gpu` subcommands.
+//! `hatch gpu` subcommands.
 
 use crate::client::ClientContext;
 use anyhow::{Context, Result};
@@ -18,7 +18,7 @@ pub enum GpuCmd {
         #[arg(long)]
         runtime: Option<String>,
 
-        /// Filter by maximum price (NMC/hr)
+        /// Filter by maximum price (HC/hr)
         #[arg(long)]
         max_price: Option<f64>,
 
@@ -129,11 +129,11 @@ async fn list_gpus(
     println!("{}", "Available Mac Providers".bold().cyan());
     if let Some(r) = min_ram    { print!("  RAM ≥ {}GB", r); }
     if let Some(rt) = &runtime  { print!("  Runtime: {}", rt.yellow()); }
-    if let Some(p) = max_price  { print!("  Price ≤ {:.3} NMC/hr", p); }
+    if let Some(p) = max_price  { print!("  Price ≤ {:.3} HC/hr", p); }
     println!();
     println!("─────────────────────────────────────────────────────────────────────────────────────");
     println!("{:<38} {:<18} {:>7} {:>6} {:>10} {:>6} {}",
-        "PROVIDER ID", "CHIP", "RAM GB", "GPU", "NMC/HR", "TRUST", "RUNTIMES");
+        "PROVIDER ID", "CHIP", "RAM GB", "GPU", "HC/HR", "TRUST", "RUNTIMES");
     println!("─────────────────────────────────────────────────────────────────────────────────────");
 
     for p in &result.providers {
@@ -162,13 +162,13 @@ async fn list_gpus(
     println!("─────────────────────────────────────────────────────────────────────────────────────");
     println!("  Showing {} of {} available providers. Sorted by {}.",
         result.providers.len(), result.total, sort);
-    println!("\n  Submit a job:  {}", "nm job submit --runtime mlx --ram 48 ./inference.py".cyan());
+    println!("\n  Submit a job:  {}", "hatch job submit --runtime mlx --ram 48 ./inference.py".cyan());
 
     Ok(())
 }
 
 async fn benchmark_local(runtime: &str) -> Result<()> {
-    println!("{}", "NeuralMesh Local Benchmark".bold().cyan());
+    println!("{}", "Hatch Local Benchmark".bold().cyan());
     println!("Detecting hardware...\n");
 
     // Detect chip via sysctl

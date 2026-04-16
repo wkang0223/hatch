@@ -1,4 +1,4 @@
-//! `nm provider` subcommands.
+//! `hatch provider` subcommands.
 
 use crate::client::ClientContext;
 use anyhow::Result;
@@ -43,7 +43,7 @@ pub async fn run(cmd: ProviderCmd, ctx: &ClientContext) -> Result<()> {
 }
 
 async fn install(runtimes: String) -> Result<()> {
-    println!("{}", "NeuralMesh Provider Setup".bold().cyan());
+    println!("{}", "Hatch Provider Setup".bold().cyan());
     println!("Installing ML runtimes: {}", runtimes.yellow());
     println!();
 
@@ -249,5 +249,5 @@ fn find_agent_binary() -> Result<String> {
     if sibling.exists() {
         return Ok(sibling.to_string_lossy().to_string());
     }
-    anyhow::bail!("neuralmesh-agent binary not found. Reinstall NeuralMesh.")
+    anyhow::bail!("hatch-agent binary not found. Reinstall Hatch.")
 }

@@ -1,4 +1,4 @@
-//! `nm job` subcommands.
+//! `hatch job` subcommands.
 
 use crate::client::ClientContext;
 use anyhow::{Context, Result};
@@ -26,7 +26,7 @@ pub enum JobCmd {
         #[arg(long, default_value = "1")]
         hours: f64,
 
-        /// Maximum price willing to pay (NMC/hr)
+        /// Maximum price willing to pay (HC/hr)
         #[arg(long, default_value = "0.50")]
         max_price: f64,
 
@@ -184,7 +184,7 @@ async fn submit(
     println!("  Runtime:  {}", runtime.cyan());
     println!("  RAM:      {} GB minimum", ram);
     println!("  Duration: {} hours max", hours);
-    println!("  Price:    ≤ {} NMC/hr", max_price);
+    println!("  Price:    ≤ {} HC/hr", max_price);
     println!("  Bundle:   {}", &bundle_hash[..12]);
 
     // Upload bundle to coordinator artifact store
@@ -230,8 +230,8 @@ async fn submit(
         println!("\nWaiting for job to complete...");
         wait_for_completion(ctx, &result.job_id).await?;
     } else {
-        println!("\nTrack progress:  {} logs {}", "nm job".cyan(), result.job_id.cyan());
-        println!("Cancel:          {} cancel {}", "nm job".cyan(), result.job_id.cyan());
+        println!("\nTrack progress:  {} logs {}", "hatch job".cyan(), result.job_id.cyan());
+        println!("Cancel:          {} cancel {}", "hatch job".cyan(), result.job_id.cyan());
     }
 
     Ok(())
