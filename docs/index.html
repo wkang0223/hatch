@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NeuralMesh — Decentralized Apple Silicon GPU Marketplace</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif;
+      background: #0a0a0f;
+      color: #e8e8f0;
+      line-height: 1.6;
+    }
+    a { color: #7c9eff; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* Hero */
+    .hero {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 4rem 2rem;
+      background: radial-gradient(ellipse at 50% 0%, rgba(100, 120, 255, 0.15) 0%, transparent 70%);
+    }
+    .badge {
+      display: inline-block;
+      background: rgba(100, 120, 255, 0.15);
+      border: 1px solid rgba(100, 120, 255, 0.3);
+      color: #7c9eff;
+      padding: 0.3rem 1rem;
+      border-radius: 999px;
+      font-size: 0.8rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-bottom: 2rem;
+    }
+    h1 {
+      font-size: clamp(2.5rem, 6vw, 5rem);
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      background: linear-gradient(135deg, #fff 40%, #7c9eff);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 1.5rem;
+    }
+    .subtitle {
+      font-size: 1.25rem;
+      color: #888;
+      max-width: 560px;
+      margin: 0 auto 3rem;
+    }
+    .cta-group { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; }
+    .btn {
+      padding: 0.8rem 2rem;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      transition: all 0.2s;
+    }
+    .btn-primary {
+      background: #4f6fff;
+      color: #fff;
+    }
+    .btn-primary:hover { background: #6b83ff; text-decoration: none; }
+    .btn-secondary {
+      background: rgba(255,255,255,0.06);
+      color: #e8e8f0;
+      border: 1px solid rgba(255,255,255,0.12);
+    }
+    .btn-secondary:hover { background: rgba(255,255,255,0.1); text-decoration: none; }
+
+    /* Install block */
+    .install-block {
+      margin-top: 3rem;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 12px;
+      padding: 1.2rem 2rem;
+      max-width: 640px;
+      text-align: left;
+    }
+    .install-block .label {
+      font-size: 0.75rem;
+      color: #555;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 0.5rem;
+    }
+    .install-block code {
+      font-family: "SF Mono", "Fira Code", monospace;
+      font-size: 0.9rem;
+      color: #a8d8a8;
+    }
+
+    /* Stats bar */
+    .stats {
+      display: flex;
+      gap: 3rem;
+      justify-content: center;
+      padding: 2rem;
+      border-top: 1px solid rgba(255,255,255,0.05);
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+      flex-wrap: wrap;
+    }
+    .stat { text-align: center; }
+    .stat-value { font-size: 2rem; font-weight: 700; color: #7c9eff; }
+    .stat-label { font-size: 0.8rem; color: #555; margin-top: 0.25rem; }
+
+    /* Features */
+    .section { padding: 5rem 2rem; max-width: 1100px; margin: 0 auto; }
+    .section-title {
+      font-size: 2rem;
+      font-weight: 700;
+      text-align: center;
+      margin-bottom: 3rem;
+      letter-spacing: -0.02em;
+    }
+    .features {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1.5rem;
+    }
+    .feature {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 12px;
+      padding: 2rem;
+    }
+    .feature-icon { font-size: 2rem; margin-bottom: 1rem; }
+    .feature h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
+    .feature p { color: #666; font-size: 0.9rem; }
+
+    /* Mac table */
+    .mac-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 2rem;
+    }
+    .mac-table th {
+      text-align: left;
+      padding: 0.75rem 1rem;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #555;
+      border-bottom: 1px solid rgba(255,255,255,0.07);
+    }
+    .mac-table td {
+      padding: 0.9rem 1rem;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+      font-size: 0.9rem;
+    }
+    .mac-table tr:hover td { background: rgba(255,255,255,0.02); }
+    .badge-green {
+      background: rgba(80, 200, 120, 0.15);
+      color: #50c878;
+      padding: 0.2rem 0.6rem;
+      border-radius: 4px;
+      font-size: 0.75rem;
+    }
+
+    /* How it works */
+    .steps {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 2rem;
+      counter-reset: steps;
+    }
+    .step { position: relative; }
+    .step-num {
+      font-size: 3rem;
+      font-weight: 800;
+      color: rgba(100, 120, 255, 0.2);
+      line-height: 1;
+      margin-bottom: 0.5rem;
+    }
+    .step h3 { font-size: 1rem; margin-bottom: 0.4rem; }
+    .step p { font-size: 0.85rem; color: #666; }
+
+    /* Footer */
+    footer {
+      text-align: center;
+      padding: 3rem 2rem;
+      border-top: 1px solid rgba(255,255,255,0.05);
+      color: #444;
+      font-size: 0.85rem;
+    }
+    footer a { color: #555; }
+  </style>
+</head>
+<body>
+
+<!-- Hero -->
+<section class="hero">
+  <div class="badge">Phase 1 — Apple Silicon</div>
+  <h1>Your idle Mac<br>earns while it sleeps.</h1>
+  <p class="subtitle">
+    NeuralMesh turns idle Mac Minis and Mac Studios into a global GPU network.
+    Earn NMC credits when your screen is locked. Pay pennies to run LLMs on 192GB of unified memory.
+  </p>
+  <div class="cta-group">
+    <a class="btn btn-primary" href="https://neuralmesh-dashboard-production-4f37.up.railway.app">Open Dashboard</a>
+    <a class="btn btn-secondary" href="https://github.com/wkang0223/neuralmesh">View on GitHub</a>
+  </div>
+
+  <div class="install-block">
+    <div class="label">Provider Install — one command</div>
+    <code>curl -fsSL https://raw.githubusercontent.com/wkang0223/neuralmesh/master/scripts/install-agent-macos.sh | bash</code>
+  </div>
+</section>
+
+<!-- Stats -->
+<div class="stats">
+  <div class="stat">
+    <div class="stat-value">192 GB</div>
+    <div class="stat-label">Max unified memory per node (M4 Ultra)</div>
+  </div>
+  <div class="stat">
+    <div class="stat-value">$0.05</div>
+    <div class="stat-label">NMC per hour (starting price)</div>
+  </div>
+  <div class="stat">
+    <div class="stat-value">0</div>
+    <div class="stat-label">CPU↔GPU copy overhead</div>
+  </div>
+  <div class="stat">
+    <div class="stat-value">70B+</div>
+    <div class="stat-label">LLM on a single Mac Mini M4 Pro</div>
+  </div>
+</div>
+
+<!-- Mac comparison table -->
+<div class="section">
+  <h2 class="section-title">Why Apple Silicon?</h2>
+  <table class="mac-table">
+    <thead>
+      <tr>
+        <th>Machine</th>
+        <th>Unified RAM</th>
+        <th>GPU Cores</th>
+        <th>Best For</th>
+        <th>Retail</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Mac Mini M4</td>
+        <td>16–24 GB</td>
+        <td>10</td>
+        <td>7B–13B inference, simulation</td>
+        <td>$599</td>
+      </tr>
+      <tr>
+        <td><strong>Mac Mini M4 Pro</strong></td>
+        <td><strong>24–64 GB</strong></td>
+        <td><strong>20</strong></td>
+        <td><strong>30B–70B LLM inference</strong></td>
+        <td><strong>$1,399</strong></td>
+      </tr>
+      <tr>
+        <td>Mac Studio M4 Max</td>
+        <td>64–128 GB</td>
+        <td>40</td>
+        <td>70B inference, fine-tuning</td>
+        <td>$1,999</td>
+      </tr>
+      <tr>
+        <td>Mac Studio M4 Ultra</td>
+        <td>128–192 GB</td>
+        <td>80</td>
+        <td>405B LLM shards, full pipeline</td>
+        <td>$3,999</td>
+      </tr>
+    </tbody>
+  </table>
+  <p style="color:#555; font-size:0.85rem; margin-top:1rem; text-align:center;">
+    Unified memory = the GPU and CPU share the same pool. No copies. Full bandwidth. Every GB counts.
+  </p>
+</div>
+
+<!-- Features -->
+<div class="section">
+  <h2 class="section-title">Built for idle Macs</h2>
+  <div class="features">
+    <div class="feature">
+      <div class="feature-icon">🔒</div>
+      <h3>Screen-lock detection</h3>
+      <p>Uses macOS CGSession API to detect when your screen is locked. Your GPU only leases when you're away.</p>
+    </div>
+    <div class="feature">
+      <div class="feature-icon">📊</div>
+      <h3>IOKit GPU monitoring</h3>
+      <p>Polls IOAccelStatistics2 every 30 seconds. Drops off the network the moment your GPU spikes above 5%.</p>
+    </div>
+    <div class="feature">
+      <div class="feature-icon">🛡️</div>
+      <h3>sandboxed execution</h3>
+      <p>Jobs run as a restricted <code>neuralmesh_worker</code> OS user with macOS sandbox-exec profiles. No filesystem or network access beyond the job directory.</p>
+    </div>
+    <div class="feature">
+      <div class="feature-icon">⚡</div>
+      <h3>MLX & Metal native</h3>
+      <p>Jobs run natively with Apple's MLX framework and PyTorch MPS backend. Zero virtualization overhead — full Metal GPU access.</p>
+    </div>
+    <div class="feature">
+      <div class="feature-icon">💰</div>
+      <h3>NMC credits</h3>
+      <p>Earn off-chain NMC credits (Phase 1). Signed Ed25519 escrow receipts prove your earnings. On-chain Arbitrum settlement in Phase 3.</p>
+    </div>
+    <div class="feature">
+      <div class="feature-icon">🌍</div>
+      <h3>No existing platform does this</h3>
+      <p>io.net, Vast.ai, Salad, Akash — none support Apple Silicon. This is the gap NeuralMesh fills.</p>
+    </div>
+  </div>
+</div>
+
+<!-- How it works -->
+<div class="section">
+  <h2 class="section-title">How it works</h2>
+  <div class="steps">
+    <div class="step">
+      <div class="step-num">01</div>
+      <h3>Install the agent</h3>
+      <p>One-line installer. Creates the neuralmesh_worker isolation user, installs MLX & PyTorch MPS runtimes, and registers a launchd daemon.</p>
+    </div>
+    <div class="step">
+      <div class="step-num">02</div>
+      <h3>Lock your screen</h3>
+      <p>When your GPU util stays below 5% for 10 minutes with your screen locked, your Mac announces itself as available.</p>
+    </div>
+    <div class="step">
+      <div class="step-num">03</div>
+      <h3>Jobs run automatically</h3>
+      <p>The coordinator matches incoming jobs to your Mac. Jobs execute in an isolated sandbox. You earn NMC per GPU-hour.</p>
+    </div>
+    <div class="step">
+      <div class="step-num">04</div>
+      <h3>Withdraw earnings</h3>
+      <p>Cash out NMC credits to USDC on Arbitrum, or use them to submit your own compute jobs.</p>
+    </div>
+  </div>
+</div>
+
+<!-- Footer -->
+<footer>
+  <p>
+    <a href="https://github.com/wkang0223/neuralmesh">GitHub</a> ·
+    <a href="https://neuralmesh-dashboard-production-4f37.up.railway.app">Dashboard</a> ·
+    <a href="https://github.com/wkang0223/neuralmesh/releases">Releases</a>
+  </p>
+  <p style="margin-top:0.75rem">NeuralMesh — Phase 1: Apple Silicon. Phase 4: NVIDIA, AMD, Intel Arc.</p>
+</footer>
+
+</body>
+</html>

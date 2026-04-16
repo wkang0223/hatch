@@ -25,7 +25,7 @@ NM_INSTALL_DIR="/usr/local/bin"
 NM_LOG_DIR="/var/log/neuralmesh"
 NM_CONFIG_DIR="$HOME/.config/neuralmesh"
 NM_TMP_DIR="/tmp/neuralmesh"
-NM_GITHUB_ORG="neuralmesh-io"
+NM_GITHUB_ORG="wkang0223"
 NM_GITHUB_REPO="neuralmesh"
 RELEASE_BASE="https://github.com/${NM_GITHUB_ORG}/${NM_GITHUB_REPO}/releases"
 
