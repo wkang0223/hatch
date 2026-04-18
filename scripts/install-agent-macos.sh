@@ -20,7 +20,7 @@ set -euo pipefail
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 
-NM_VERSION="${NM_VERSION:-v0.2.1}"
+NM_VERSION="${NM_VERSION:-v0.2.2}"
 NM_INSTALL_DIR="/opt/homebrew/bin"
 NM_LOG_DIR="/var/log/hatch"
 # macOS config dir: ~/Library/Application Support/hatch
@@ -123,8 +123,17 @@ fi
 PYTHON_VER="$(python3.12 --version 2>&1)"
 success "$PYTHON_VER"
 
-PIP="python3.12 -m pip"
-$PIP install --upgrade pip --quiet 2>/dev/null || true
+# Homebrew Python is managed (PEP 668) — use a dedicated venv to avoid
+# "externally managed environment" errors on macOS 14+.
+VENV_DIR="$HOME/.hatch-venv"
+if [[ ! -f "$VENV_DIR/bin/python" ]]; then
+    info "Creating Hatch Python venv at $VENV_DIR..."
+    python3.12 -m venv "$VENV_DIR"
+fi
+PIP="$VENV_DIR/bin/pip"
+PYTHON="$VENV_DIR/bin/python"
+"$PIP" install --upgrade pip --quiet 2>/dev/null || true
+success "Python venv ready: $VENV_DIR"
 
 # ── ML Runtimes ───────────────────────────────────────────────────────────────
 
@@ -135,16 +144,17 @@ install_pip() {
     local pkg="$1"
     local name="${2:-$1}"
     info "  Installing $name..."
-    if $PIP install --quiet --upgrade "$pkg" 2>/dev/null; then
+    if "$PIP" install --upgrade "$pkg" --quiet 2>/dev/null; then
         success "  $name"
     else
-        warn "  $name install failed — skipping (retry: python3.12 -m pip install $pkg)"
+        warn "  $name install failed — skipping"
+        warn "  Retry: $VENV_DIR/bin/pip install $pkg"
     fi
 }
 
 # MLX — primary runtime for Apple Silicon
-install_pip "mlx>=0.16" "MLX"
-install_pip "mlx-lm>=0.16" "MLX-LM"
+install_pip "mlx" "MLX"
+install_pip "mlx-lm" "MLX-LM"
 
 # PyTorch MPS
 install_pip "torch torchvision torchaudio" "PyTorch (MPS)"
@@ -154,10 +164,11 @@ install_pip "onnxruntime" "ONNX Runtime (CoreML EP)"
 
 # llama.cpp with Metal
 info "  Installing llama-cpp-python (Metal)..."
-if CMAKE_ARGS="-DGGML_METAL=on" FORCE_CMAKE=1 $PIP install --quiet llama-cpp-python 2>/dev/null; then
+if CMAKE_ARGS="-DGGML_METAL=on" FORCE_CMAKE=1 "$PIP" install --quiet llama-cpp-python 2>/dev/null; then
     success "  llama-cpp-python (Metal)"
 else
     warn "  llama-cpp-python Metal install failed — skipping"
+    warn "  Retry: CMAKE_ARGS=\"-DGGML_METAL=on\" $VENV_DIR/bin/pip install llama-cpp-python"
 fi
 
 # Common dependencies
@@ -213,7 +224,7 @@ download_binary() {
         success "  $name → $dest"
     else
         warn "  Could not download $name from $url"
-        warn "  Build from source: cargo build --release -p neuralmesh-cli && cargo build --release -p hatch-agent"
+        warn "  Build from source: cargo build --release --bin hatch && cargo build --release --bin hatch-agent"
     fi
 }
 
@@ -316,6 +327,8 @@ cat > "/tmp/io.hatch.agent.plist" <<EOF
     <dict>
         <key>NM_ACCOUNT_ID</key>
         <string>${ACCOUNT_ID}</string>
+        <key>HATCH_VENV</key>
+        <string>${VENV_DIR}</string>
         <key>RUST_LOG</key>
         <string>hatch_agent=info</string>
     </dict>
