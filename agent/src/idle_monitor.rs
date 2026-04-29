@@ -351,7 +351,31 @@ fn state_to_str(state: &IdleState) -> &'static str {
 }
 
 /// Find the best Python interpreter that has ML packages installed.
+///
+/// Search order:
+///   1. `$HATCH_VENV/bin/python` — set by installer in launchd plist; MLX
+///      lives here on Homebrew-managed (PEP 668) macOS 14+ systems.
+///   2. System pythons (python3.12 … python3) — legacy / developer installs.
 fn best_python_prefix() -> String {
+    // 1. Installer venv takes priority.
+    if let Ok(venv) = std::env::var("HATCH_VENV") {
+        let py = format!("{}/bin/python", venv);
+        if std::process::Command::new(&py)
+            .args(["-c", "import mlx"])
+            .output()
+            .map(|o| o.status.success())
+            .unwrap_or(false)
+        {
+            if let Ok(out) = std::process::Command::new(&py)
+                .args(["-c", "import sys; print(sys.prefix)"])
+                .output()
+            {
+                return String::from_utf8_lossy(&out.stdout).trim().to_string();
+            }
+        }
+    }
+
+    // 2. Fall back to system pythons.
     for py in &["python3.12", "python3.13", "python3.11", "python3"] {
         if std::process::Command::new(py)
             .args(["-c", "import mlx"])
@@ -359,7 +383,6 @@ fn best_python_prefix() -> String {
             .map(|o| o.status.success())
             .unwrap_or(false)
         {
-            // Return the prefix (e.g. /opt/homebrew/opt/python@3.12)
             if let Ok(out) = std::process::Command::new(py)
                 .args(["-c", "import sys; print(sys.prefix)"])
                 .output()

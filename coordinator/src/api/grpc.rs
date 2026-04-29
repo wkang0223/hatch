@@ -287,14 +287,25 @@ impl AgentService for AgentGrpcService {
             }
         }
 
-        // TODO: trigger escrow release in ledger
         let credits = crate::matching::calculate_credits(&self.state.db, &jc.job_id).await
             .unwrap_or(0.0);
+
+        // Release escrow via ledger service (no-op when oracle is disabled).
+        if job_state == "complete" && self.state.oracle.enabled {
+            let oracle  = std::sync::Arc::clone(&self.state.oracle);
+            let job_id  = jc.job_id.clone();
+            let cost    = credits;
+            tokio::spawn(async move {
+                if let Err(e) = oracle.release_escrow(&job_id, cost).await {
+                    warn!(job_id, error = %e, "gRPC: escrow release failed (non-fatal)");
+                }
+            });
+        }
 
         Ok(Response::new(JobCompleteAck {
             ok: true,
             credits_earned: credits,
-            message: format!("Job {}: {} — earned {:.4} NMC", jc.job_id, job_state, credits),
+            message: format!("Job {}: {} — earned {:.4} HC", jc.job_id, job_state, credits),
         }))
     }
 }
