@@ -182,6 +182,15 @@ async fn list_jobs_rest(
             (Some(p), Some(s)) => Some(p * (s as f64 / 3600.0)),
             _ => None,
         };
+        // Convert integer runtime enum back to string name for CLI
+        let runtime_str = match r.runtime {
+            Some(0) => "mlx",
+            Some(1) => "torch-mps",
+            Some(2) => "onnx-coreml",
+            Some(3) => "llama-cpp",
+            Some(4) => "shell",
+            _       => "shell",
+        };
         serde_json::json!({
             "id":                 r.job_id,
             "job_id":             r.job_id,
@@ -189,7 +198,7 @@ async fn list_jobs_rest(
             "consumer_id":        r.consumer_id,
             "provider_id":        r.provider_id,
             "state":              r.state,
-            "runtime":            r.runtime,
+            "runtime":            runtime_str,
             "min_ram_gb":         r.min_ram_gb,
             "max_price_per_hour": r.max_price_per_hour,
             "bundle_hash":        r.bundle_hash,
@@ -231,6 +240,14 @@ async fn get_job(
         (Some(p), Some(s)) => Some(p * (s as f64 / 3600.0)),
         _ => None,
     };
+    let runtime_str = match r.runtime {
+        Some(0) => "mlx",
+        Some(1) => "torch-mps",
+        Some(2) => "onnx-coreml",
+        Some(3) => "llama-cpp",
+        Some(4) => "shell",
+        _       => "shell",
+    };
 
     Ok(Json(serde_json::json!({
         "id":                 r.job_id,
@@ -239,7 +256,7 @@ async fn get_job(
         "consumer_id":        r.consumer_id,
         "provider_id":        r.provider_id,
         "state":              r.state,
-        "runtime":            r.runtime,
+        "runtime":            runtime_str,
         "min_ram_gb":         r.min_ram_gb,
         "max_price_per_hour": r.max_price_per_hour,
         "price_per_hour":     r.price_per_hour,
