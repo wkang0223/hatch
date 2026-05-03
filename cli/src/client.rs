@@ -30,7 +30,7 @@ impl ClientContext {
     pub fn require_account_id(&self) -> Result<&str> {
         self.account_id.as_deref()
             .ok_or_else(|| anyhow::anyhow!(
-                "No account configured. Run `nm provider install` or set NM_ACCOUNT_ID."
+                "No account configured. Run `hatch provider install` or set NM_ACCOUNT_ID."
             ))
     }
 }

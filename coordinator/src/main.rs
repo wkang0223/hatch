@@ -34,6 +34,10 @@ struct Cli {
     /// Ledger service URL for on-chain settlement forwarding (Phase 3, optional)
     #[arg(long, env = "NM_LEDGER_URL")]
     ledger_url: Option<String>,
+    /// Publicly reachable base URL of this coordinator (no trailing slash).
+    /// Used to build artifact download URLs. Example: https://hatch-coordinator.up.railway.app
+    #[arg(long, env = "NM_PUBLIC_URL", default_value = "")]
+    public_url: String,
 }
 
 #[tokio::main]
@@ -91,6 +95,7 @@ async fn main() -> Result<()> {
         redis,
         oracle,
         ledger_url: cli.ledger_url.clone(),
+        public_url: cli.public_url.clone(),
     };
 
     // Build a single combined axum router: gRPC routes merged with REST routes.
@@ -106,6 +111,21 @@ async fn main() -> Result<()> {
 
     let listener = tokio::net::TcpListener::bind(&cli.rest_addr).await?;
     info!(addr = %cli.rest_addr, "Serving REST + gRPC on single port");
+
+    // Background task: evict providers that stop sending heartbeats.
+    // Runs every 60 seconds — marks them offline so they stop receiving job matches.
+    let evict_db = db.clone();
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(60));
+        loop {
+            interval.tick().await;
+            match reputation::evict_stale_providers(&evict_db).await {
+                Ok(n) if n > 0 => info!(evicted = n, "Stale providers marked offline"),
+                Ok(_) => {}
+                Err(e) => warn!(error = %e, "Stale provider eviction failed"),
+            }
+        }
+    });
 
     tokio::try_join!(
         async { axum::serve(listener, app).await.map_err(anyhow::Error::from) },

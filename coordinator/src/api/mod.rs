@@ -15,4 +15,7 @@ pub struct AppState {
     pub oracle: Arc<SettlementOracle>,
     /// Optional ledger service URL for milestone rewards (NM_LEDGER_URL).
     pub ledger_url: Option<String>,
+    /// Publicly reachable base URL of this coordinator (e.g. https://hatch-coordinator.up.railway.app).
+    /// Set via `NM_PUBLIC_URL` env var. Used to build artifact download URLs returned to agents.
+    pub public_url: String,
 }

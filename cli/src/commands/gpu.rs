@@ -202,7 +202,7 @@ async fn benchmark_local(runtime: &str) -> Result<()> {
     }
 
     println!("\n{}", "Benchmark complete.".bold().green());
-    println!("Run {} to start offering your GPU to the network.", "`nm provider start`".cyan());
+    println!("Run {} to start offering your GPU to the network.", "`hatch provider start`".cyan());
 
     Ok(())
 }

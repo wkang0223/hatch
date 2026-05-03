@@ -15,9 +15,9 @@ pub enum ProviderCmd {
         #[arg(long, default_value = "mlx,torch-mps,onnx-coreml")]
         runtimes: String,
     },
-    /// Start the neuralmesh-agent daemon
+    /// Start the hatch-agent daemon
     Start,
-    /// Stop the neuralmesh-agent daemon
+    /// Stop the hatch-agent daemon
     Stop,
     /// Show provider status (GPU state, active jobs, earnings)
     Status,
@@ -96,7 +96,8 @@ async fn install(runtimes: String) -> Result<()> {
             }
             "llama-cpp" => {
                 println!("  Installing llama-cpp-python with Metal support...");
-                let status = Command::new("pip3")
+                let pip = venv_pip();
+                let status = Command::new(&pip)
                     .args(["install", "llama-cpp-python"])
                     .env("CMAKE_ARGS", "-DGGML_METAL=on")
                     .env("FORCE_CMAKE", "1")
@@ -116,60 +117,77 @@ async fn install(runtimes: String) -> Result<()> {
     println!("\n{} Working directory created: /tmp/neuralmesh", "✓".green());
 
     println!("\n{}", "Setup complete!".bold().green());
-    println!("Run {} to start offering your GPU to the network.", "`nm provider start`".cyan());
+    println!("Run {} to start offering your GPU to the network.", "`hatch provider start`".cyan());
 
     Ok(())
 }
 
+/// Returns path to the pip binary inside the Hatch venv (or system pip3 fallback).
+fn venv_pip() -> String {
+    // Honour the env var set by the installer / launchd plist
+    if let Ok(venv) = std::env::var("HATCH_VENV") {
+        let p = format!("{}/bin/pip", venv);
+        if std::path::Path::new(&p).exists() {
+            return p;
+        }
+    }
+    // Default venv location
+    let default = format!("{}/.hatch-venv/bin/pip", std::env::var("HOME").unwrap_or_default());
+    if std::path::Path::new(&default).exists() {
+        return default;
+    }
+    "pip3".to_string()
+}
+
 fn install_pip_package(packages: &str) -> Result<()> {
+    let pip = venv_pip();
     let args: Vec<&str> = std::iter::once("install")
         .chain(packages.split_whitespace())
         .collect();
-    let status = Command::new("pip3").args(&args).status()?;
+    let status = Command::new(&pip).args(&args).status()?;
     if !status.success() {
-        anyhow::bail!("pip3 install {} failed", packages);
+        anyhow::bail!("{} install {} failed", pip, packages);
     }
     Ok(())
 }
 
 async fn start_daemon() -> Result<()> {
-    // Find neuralmesh-agent binary
-    let agent_bin = find_agent_binary()?;
-    let config_path = dirs::config_dir()
-        .unwrap_or_default()
-        .join("neuralmesh/agent.toml");
+    let plist = "/Library/LaunchDaemons/io.hatch.agent.plist";
 
-    println!("Starting neuralmesh-agent...");
+    println!("Starting hatch-agent...");
     let status = Command::new("sudo")
-        .args([
-            &agent_bin,
-            "service", "install",
-            "--binary", &agent_bin,
-            "--config", config_path.to_str().unwrap_or(""),
-        ])
+        .args(["launchctl", "load", "-w", plist])
         .status()?;
 
     if status.success() {
-        println!("{} neuralmesh-agent started", "✓".green());
+        println!("{} hatch-agent started", "✓".green());
         println!("Your Mac will start offering idle GPU time to the network.");
     } else {
-        anyhow::bail!("Failed to start agent daemon");
+        // Plist may not exist yet — give a helpful error
+        if !std::path::Path::new(plist).exists() {
+            anyhow::bail!(
+                "LaunchDaemon plist not found at {}.\n\
+                 Run the installer first:  curl -fsSL https://install.hatch.network | bash",
+                plist
+            );
+        }
+        anyhow::bail!("Failed to start hatch-agent daemon (sudo launchctl load returned error)");
     }
     Ok(())
 }
 
 async fn stop_daemon() -> Result<()> {
     Command::new("sudo")
-        .args(["launchctl", "unload", "-w", "/Library/LaunchDaemons/io.neuralmesh.agent.plist"])
+        .args(["launchctl", "unload", "-w", "/Library/LaunchDaemons/io.hatch.agent.plist"])
         .status()?;
-    println!("{} neuralmesh-agent stopped", "✓".green());
+    println!("{} hatch-agent stopped", "✓".green());
     Ok(())
 }
 
 async fn show_status(ctx: &ClientContext) -> Result<()> {
     // Check launchd service status
     let running = Command::new("launchctl")
-        .args(["list", "io.neuralmesh.agent"])
+        .args(["list", "io.hatch.agent"])
         .status()
         .map(|s| s.success())
         .unwrap_or(false);
@@ -237,15 +255,15 @@ async fn configure(
 }
 
 fn find_agent_binary() -> Result<String> {
-    // Look for neuralmesh-agent in PATH or next to the nm binary
-    if let Ok(out) = Command::new("which").arg("neuralmesh-agent").output() {
+    // Look for hatch-agent in PATH or next to the hatch CLI binary
+    if let Ok(out) = Command::new("which").arg("hatch-agent").output() {
         if out.status.success() {
             return Ok(String::from_utf8_lossy(&out.stdout).trim().to_string());
         }
     }
     // Try same directory as current binary
     let cur = std::env::current_exe()?;
-    let sibling = cur.parent().unwrap().join("neuralmesh-agent");
+    let sibling = cur.parent().unwrap().join("hatch-agent");
     if sibling.exists() {
         return Ok(sibling.to_string_lossy().to_string());
     }

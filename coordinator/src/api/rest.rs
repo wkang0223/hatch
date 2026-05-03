@@ -3,9 +3,10 @@
 use super::AppState;
 use anyhow::Result;
 use axum::{
-    extract::{Path, Query, State},
-    http::StatusCode,
-    response::Json,
+    body::Body,
+    extract::{Multipart, Path, Query, State},
+    http::{header, StatusCode},
+    response::{Json, Response},
     routing::{get, post},
     Router,
 };
@@ -42,6 +43,8 @@ pub fn build_router(state: AppState) -> Router {
         .route("/api/v1/jobs/:id/fail",         post(fail_job))
         .route("/api/v1/jobs/:id/checkpoint",   get(get_checkpoint).post(save_checkpoint))
         .route("/api/v1/jobs/:id/heartbeat",    post(job_heartbeat))
+        .route("/api/v1/artifacts",             post(upload_artifact))
+        .route("/api/v1/artifacts/:hash",       get(download_artifact))
         // ── Withdraw ──────────────────────────────────────────────────────
         .route("/api/v1/withdraw",              post(withdraw))
         // ── Ledger (Stripe webhook credits) ──────────────────────────────
@@ -1689,4 +1692,150 @@ async fn withdraw(
         "tx_id":  tx_id,
         "message": "Withdrawal queued — processed within 24 hours to your on-chain address",
     })))
+}
+
+// ─── Artifact store ───────────────────────────────────────────────────────────
+//
+// POST /api/v1/artifacts
+//   Accepts: multipart/form-data
+//     Field "bundle_hash" — hex hash (used as directory name for dedup)
+//     File fields          — the script file(s) to pack
+//   Stores all files at /var/neuralmesh/artifacts/{hash}/
+//   Tars them into bundle.tar.gz in the same directory.
+//   Returns: { "url": "<public_url>/api/v1/artifacts/{hash}" }
+//
+// GET /api/v1/artifacts/:hash
+//   Serves the bundle.tar.gz for the given hash.
+
+const ARTIFACT_DIR: &str = "/var/neuralmesh/artifacts";
+
+async fn upload_artifact(
+    State(state): State<AppState>,
+    mut multipart: Multipart,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let mut bundle_hash = String::new();
+    let mut files: Vec<(String, Vec<u8>)> = Vec::new();
+
+    while let Some(field) = multipart.next_field().await.map_err(|e| {
+        warn!(error = %e, "Multipart parse error");
+        StatusCode::BAD_REQUEST
+    })? {
+        let name = field.name().unwrap_or("").to_string();
+        if name == "bundle_hash" {
+            bundle_hash = field.text().await.map_err(|_| StatusCode::BAD_REQUEST)?;
+        } else {
+            let file_name = field
+                .file_name()
+                .unwrap_or(&name)
+                .to_string();
+            let data = field.bytes().await.map_err(|_| StatusCode::BAD_REQUEST)?;
+            files.push((file_name, data.to_vec()));
+        }
+    }
+
+    if bundle_hash.is_empty() {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+    if files.is_empty() {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    // Sanitise hash: allow only hex chars to prevent path traversal
+    if !bundle_hash.chars().all(|c| c.is_ascii_hexdigit()) {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    let artifact_dir = std::path::PathBuf::from(ARTIFACT_DIR).join(&bundle_hash);
+    std::fs::create_dir_all(&artifact_dir).map_err(|e| {
+        warn!(error = %e, "Failed to create artifact dir");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    // Write individual files
+    for (name, data) in &files {
+        // Sanitise filename
+        let safe_name = std::path::Path::new(name)
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("file");
+        std::fs::write(artifact_dir.join(safe_name), data).map_err(|e| {
+            warn!(error = %e, "Failed to write artifact file");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+    }
+
+    // Pack into bundle.tar.gz using the `tar` command
+    let bundle_path = artifact_dir.join("bundle.tar.gz");
+    let file_args: Vec<String> = files
+        .iter()
+        .map(|(n, _)| {
+            std::path::Path::new(n)
+                .file_name()
+                .and_then(|f| f.to_str())
+                .unwrap_or(n)
+                .to_string()
+        })
+        .collect();
+
+    let status = std::process::Command::new("tar")
+        .arg("-czf")
+        .arg(&bundle_path)
+        .args(&file_args)
+        .current_dir(&artifact_dir)
+        .status()
+        .map_err(|e| {
+            warn!(error = %e, "tar spawn failed");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+    if !status.success() {
+        warn!(hash = %bundle_hash, "tar failed creating bundle.tar.gz");
+        return Err(StatusCode::INTERNAL_SERVER_ERROR);
+    }
+
+    let base = if state.public_url.is_empty() {
+        // Fallback: relative path only (useful in local dev)
+        String::new()
+    } else {
+        state.public_url.trim_end_matches('/').to_string()
+    };
+
+    let url = format!("{}/api/v1/artifacts/{}", base, bundle_hash);
+
+    info!(hash = %bundle_hash, files = files.len(), "Artifact bundle stored");
+    Ok(Json(serde_json::json!({ "url": url, "bundle_hash": bundle_hash })))
+}
+
+async fn download_artifact(
+    Path(hash): Path<String>,
+) -> Result<Response<Body>, StatusCode> {
+    // Sanitise
+    if !hash.chars().all(|c| c.is_ascii_hexdigit()) {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    let bundle_path = std::path::PathBuf::from(ARTIFACT_DIR)
+        .join(&hash)
+        .join("bundle.tar.gz");
+
+    if !bundle_path.exists() {
+        return Err(StatusCode::NOT_FOUND);
+    }
+
+    let data = std::fs::read(&bundle_path).map_err(|e| {
+        warn!(error = %e, hash = %hash, "Failed to read artifact bundle");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    let response = Response::builder()
+        .status(StatusCode::OK)
+        .header(header::CONTENT_TYPE, "application/gzip")
+        .header(
+            header::CONTENT_DISPOSITION,
+            format!("attachment; filename=\"bundle-{}.tar.gz\"", &hash[..8.min(hash.len())]),
+        )
+        .body(Body::from(data))
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    Ok(response)
 }
