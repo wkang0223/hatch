@@ -27,12 +27,19 @@ FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y \
     ca-certificates \
     libssl3 \
+    tar \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /build/target/release/neuralmesh-coordinator /usr/local/bin/neuralmesh-coordinator
 
+# Pre-create artifact and checkpoint directories
+RUN mkdir -p /var/neuralmesh/artifacts /var/neuralmesh/checkpoints
+
 EXPOSE 8080 9090
 
 ENV RUST_LOG=info
+# Set this to your Railway public domain so artifact download URLs are correct.
+# Override via Railway service variable: NM_PUBLIC_URL=https://hatch-coordinator.up.railway.app
+ENV NM_PUBLIC_URL=""
 
 CMD ["neuralmesh-coordinator"]
