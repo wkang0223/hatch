@@ -13,6 +13,7 @@ const NAV_LINKS = [
   { href: "/provider", label: "Provider" },
   { href: "/wallet",   label: "Wallet" },
   { href: "/account",  label: "Account" },
+  { href: "/waitlist", label: "Waitlist" },
 ];
 
 type DeviceStatus = "loading" | "none" | "verified" | "mismatch";
@@ -91,6 +92,12 @@ export default function Navbar() {
               )}
             </Link>
 
+            <Link
+              href="/onboard"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium border border-slate-700 text-slate-300 hover:bg-slate-800 hover:border-slate-600 transition-colors"
+            >
+              Become a provider
+            </Link>
             <Link
               href="/market"
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium bg-brand-400/10 text-brand-300 hover:bg-brand-400/20 border border-brand-400/20 transition-colors"

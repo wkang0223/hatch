@@ -32,7 +32,7 @@ function JobsInner() {
   const [submitting, setSubmitting]   = useState(false);
 
   const accountId = typeof window !== "undefined"
-    ? localStorage.getItem("nm_account_id") ?? ""
+    ? localStorage.getItem("hatch_account_id") ?? ""
     : "";
 
   const loadJobs = useCallback(async () => {
@@ -217,7 +217,7 @@ function JobsInner() {
               <div>
                 <div className="text-xs text-slate-500">Estimated cost</div>
                 <div className="text-lg font-bold text-green-400 font-mono mt-0.5">
-                  ≤ {(maxPrice * hours).toFixed(4)} HC
+                  ≤ {(maxPrice * hours).toFixed(4)} HTC
                 </div>
                 <div className="text-xs text-slate-500">
                   {hours}h × {maxPrice.toFixed(3)} HC/hr max
@@ -296,9 +296,9 @@ function JobsInner() {
                     </div>
 
                     {/* Cost */}
-                    {job.actual_cost_nmc !== undefined && (
+                    {job.actual_cost_htc !== undefined && (
                       <span className="text-xs font-mono text-green-400 hidden sm:block">
-                        {job.actual_cost_nmc.toFixed(4)} HC
+                        {job.actual_cost_htc.toFixed(4)} HTC
                       </span>
                     )}
 

@@ -5,8 +5,8 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export function formatNmc(amount: number, decimals = 4): string {
-  return amount.toFixed(decimals) + " HC";
+export function formatHtc(amount: number, decimals = 4): string {
+  return amount.toFixed(decimals) + " HTC";
 }
 
 export function formatRam(gb: number): string {
@@ -20,11 +20,19 @@ export function trustStars(score: number): string {
 
 export function runtimeShort(rt: string): string {
   const map: Record<string, string> = {
-    "mlx": "MLX",
-    "torch-mps": "MPS",
-    "onnx-coreml": "ONNX",
-    "llama-cpp": "Llama",
-    "shell": "Shell",
+    "mlx":            "MLX",
+    "torch-mps":      "MPS",
+    "onnx-coreml":    "CoreML",
+    "llama-cpp":      "llama.cpp",
+    "shell":          "Shell",
+    "torch-cuda":     "CUDA",
+    "onnx-cuda":      "ONNX-CUDA",
+    "tensorrt":       "TensorRT",
+    "llama-cpp-cuda": "llama-CUDA",
+    "vllm-cuda":      "vLLM",
+    "torch-rocm":     "ROCm",
+    "onnx-rocm":      "ONNX-ROCm",
+    "llama-cpp-hip":  "llama-HIP",
   };
   return map[rt] ?? rt;
 }

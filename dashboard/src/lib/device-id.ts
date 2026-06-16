@@ -219,7 +219,7 @@ export async function createIdentity(
   await idbSet(IDENTITY_KEY, identity);
 
   // Also store accountId in localStorage for quick access (non-sensitive)
-  localStorage.setItem("nm_account_id", accountId);
+  localStorage.setItem("hatch_account_id", accountId);
 
   return identity;
 }
@@ -342,5 +342,5 @@ export async function reRegisterDevice(
  */
 export async function deleteIdentity(): Promise<void> {
   await idbDelete(IDENTITY_KEY);
-  localStorage.removeItem("nm_account_id");
+  localStorage.removeItem("hatch_account_id");
 }

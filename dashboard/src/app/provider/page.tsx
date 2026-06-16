@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { api, type Job } from "@/lib/api-client";
-import { cn, stateColor, formatNmc, runtimeShort } from "@/lib/utils";
+import { cn, stateColor, formatHtc, runtimeShort } from "@/lib/utils";
 import {
   Cpu, DollarSign, Activity, Clock, CheckCircle, XCircle,
   TrendingUp, Copy, Terminal, AlertCircle
@@ -17,14 +17,14 @@ export default function ProviderPage() {
   const [jobs, setJobs]           = useState<Job[]>([]);
   const [agentRunning, setAgentRunning] = useState<boolean | null>(null);
   const [totalEarned, setTotalEarned]   = useState(0);
-  const [chartData, setChartData]       = useState<{ day: string; nmc: number }[]>([]);
+  const [chartData, setChartData]       = useState<{ day: string; htc: number }[]>([]);
   const [loading, setLoading]           = useState(true);
   const [error, setError]               = useState<string | null>(null);
 
   // Load account ID from device storage on mount
   useEffect(() => {
     if (typeof window !== "undefined") {
-      setAccountId(localStorage.getItem("nm_account_id"));
+      setAccountId(localStorage.getItem("hatch_account_id"));
     }
   }, []);
 
@@ -38,7 +38,7 @@ export default function ProviderPage() {
     ])
       .then(([{ jobs: list }, balance]) => {
         setJobs(list);
-        setTotalEarned(balance.total_earned_nmc);
+        setTotalEarned(balance.total_earned_htc);
 
         // Build 14-day chart from real job data
         const days: Record<string, number> = {};
@@ -48,14 +48,14 @@ export default function ProviderPage() {
           days[d.toLocaleDateString("en-US", { month: "short", day: "numeric" })] = 0;
         }
         list.forEach((j) => {
-          if (j.actual_cost_nmc && j.completed_at) {
+          if (j.actual_cost_htc && j.completed_at) {
             const key = new Date(j.completed_at).toLocaleDateString("en-US", {
               month: "short", day: "numeric",
             });
-            if (key in days) days[key] += j.actual_cost_nmc * 0.92; // provider's 92%
+            if (key in days) days[key] += j.actual_cost_htc * 0.92; // provider's 92%
           }
         });
-        setChartData(Object.entries(days).map(([day, nmc]) => ({ day, nmc })));
+        setChartData(Object.entries(days).map(([day, nmc]) => ({ day, htc })));
       })
       .catch(() => setError("Could not reach coordinator. Is the backend running?"))
       .finally(() => setLoading(false));
@@ -63,7 +63,7 @@ export default function ProviderPage() {
 
   const runningJobs   = jobs.filter((j) => j.state === "running").length;
   const completedJobs = jobs.filter((j) => j.state === "complete").length;
-  const totalCost     = jobs.reduce((s, j) => s + (j.actual_cost_nmc ?? 0), 0);
+  const totalCost     = jobs.reduce((s, j) => s + (j.actual_cost_htc ?? 0), 0);
 
   // Not registered yet
   if (!loading && !accountId) {
@@ -128,16 +128,16 @@ export default function ProviderPage() {
 
         {/* Stats row */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          <StatCard icon={DollarSign}  label="Total earned"  value={formatNmc(totalEarned)}   color="text-green-400"  />
+          <StatCard icon={DollarSign}  label="Total earned"  value={formatHtc(totalEarned)}   color="text-green-400"  />
           <StatCard icon={Activity}    label="Running jobs"  value={String(runningJobs)}       color="text-brand-400" />
           <StatCard icon={CheckCircle} label="Completed"     value={String(completedJobs)}     color="text-blue-400"  />
-          <StatCard icon={TrendingUp}  label="This session"  value={formatNmc(totalCost, 3)}   color="text-purple-400"/>
+          <StatCard icon={TrendingUp}  label="This session"  value={formatHtc(totalCost, 3)}   color="text-purple-400"/>
         </div>
 
         {/* Earnings chart */}
         <div className="glass rounded-xl p-5 mb-8">
           <h2 className="text-sm font-semibold text-white mb-4">Earnings (last 14 days)</h2>
-          {chartData.every((d) => d.nmc === 0) ? (
+          {chartData.every((d) => d.htc === 0) ? (
             <div className="h-40 flex items-center justify-center text-slate-600 text-sm">
               {loading ? "Loading earnings data…" : "No completed jobs in the last 14 days."}
             </div>
@@ -146,7 +146,7 @@ export default function ProviderPage() {
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={chartData}>
                   <defs>
-                    <linearGradient id="nmcGrad" x1="0" y1="0" x2="0" y2="1">
+                    <linearGradient id="htcGrad" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%"  stopColor="#ffe566" stopOpacity={0.3} />
                       <stop offset="95%" stopColor="#ffe566" stopOpacity={0}   />
                     </linearGradient>
@@ -159,7 +159,7 @@ export default function ProviderPage() {
                     labelStyle={{ color: "#94a3b8" }}
                     formatter={(v: number) => [`${v.toFixed(4)} HC`, "Earned"]}
                   />
-                  <Area type="monotone" dataKey="nmc" stroke="#ffe566" strokeWidth={2} fill="url(#nmcGrad)" />
+                  <Area type="monotone" dataKey="htc" stroke="#ffe566" strokeWidth={2} fill="url(#htcGrad)" />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
@@ -175,9 +175,9 @@ export default function ProviderPage() {
             </p>
             <div className="space-y-3">
               {[
-                { label: "One-line install", cmd: "curl -fsSL https://raw.githubusercontent.com/wkang0223/neuralmesh/master/scripts/install-agent-macos.sh | bash" },
-                { label: "Or via Homebrew",  cmd: "brew install hatch/tap/nm && nm provider install" },
-                { label: "Start agent",      cmd: "nm provider start" },
+                { label: "One-line install", cmd: "curl -fsSL https://raw.githubusercontent.com/wkang0223/hatch/master/scripts/install-agent-macos.sh | bash" },
+                { label: "Or via Homebrew",  cmd: "brew install hatch/tap/hatch && hatch provider install" },
+                { label: "Start agent",      cmd: "hatch provider start" },
               ].map((s) => (
                 <div key={s.cmd} className="flex items-center gap-3 bg-slate-900 rounded-lg px-4 py-3 border border-slate-800">
                   <code className="flex-1 font-mono text-xs text-slate-300">{s.cmd}</code>
@@ -262,9 +262,9 @@ function JobRow({ job }: { job: Job }) {
       <div className="text-xs text-slate-400 hidden sm:block">{job.min_ram_gb} GB</div>
 
       <div className="text-xs font-mono text-right">
-        {job.actual_cost_nmc !== undefined ? (
-          <span className={job.actual_cost_nmc > 0 ? "text-green-400" : "text-slate-500"}>
-            {formatNmc(job.actual_cost_nmc, 4)}
+        {job.actual_cost_htc !== undefined ? (
+          <span className={job.actual_cost_htc > 0 ? "text-green-400" : "text-slate-500"}>
+            {formatHtc(job.actual_cost_htc, 4)}
           </span>
         ) : (
           <span className="text-slate-500">—</span>

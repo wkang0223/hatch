@@ -40,7 +40,7 @@ export default function CompliancePage() {
 
   useEffect(() => {
     if (typeof window !== "undefined") {
-      setAccountId(localStorage.getItem("nm_account_id"));
+      setAccountId(localStorage.getItem("hatch_account_id"));
     }
   }, []);
 

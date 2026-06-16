@@ -13,7 +13,7 @@ export interface Provider {
   unified_memory_gb: number;
   gpu_cores: number;
   installed_runtimes: string[];
-  floor_price_nmc_per_hour: number;
+  floor_price_htc_per_hour: number;
   trust_score: number;
   region?: string;
   bandwidth_mbps?: number;
@@ -43,7 +43,7 @@ export interface Job {
   bundle_hash?: string;
   bundle_url?: string;
   output_hash?: string;
-  actual_cost_nmc?: number;
+  actual_cost_htc?: number;
   actual_runtime_s?: number;
   has_checkpoint?: boolean;
   checkpoint_iter?: number;
@@ -66,16 +66,16 @@ export interface NetworkStats {
 
 export interface Balance {
   account_id: string;
-  available_nmc: number;
-  escrowed_nmc: number;
-  total_earned_nmc: number;
-  total_spent_nmc: number;
+  available_htc: number;
+  escrowed_htc: number;
+  total_earned_htc: number;
+  total_spent_htc: number;
 }
 
 export interface Transaction {
   id: string;
   kind: string;
-  amount_nmc: number;
+  amount_htc: number;
   /** Running balance after this transaction — computed client-side from the list */
   balance_after: number;
   description: string;
@@ -101,7 +101,7 @@ export interface JobSubmitResponse {
   job_id: string;
   state: string;
   estimated_wait_secs: number;
-  locked_nmc: number;
+  locked_htc: number;
   error?: string;
   message?: string;
 }
@@ -116,7 +116,7 @@ export interface JobLogs {
 export interface WithdrawRequest {
   account_id:          string;
   destination_address: string;
-  amount_nmc:          number;
+  amount_htc:          number;
   chain:               "arbitrum" | "solana";
 }
 

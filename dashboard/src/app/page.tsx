@@ -43,21 +43,21 @@ const FEATURES = [
   },
   {
     icon: TrendingUp,
-    title: "HC Credit System",
-    body: "Off-chain HC credits for Phase 1. On-chain Arbitrum L2 token for trustless settlement in Phase 3 — no gas fees in the interim.",
+    title: "HTC Credit System",
+    body: "Off-chain HTC credits for Phase 1. On-chain Arbitrum L2 token for trustless settlement in Phase 3 — no gas fees in the interim.",
   },
 ];
 
 const STEPS_PROVIDER = [
-  { step: "1", cmd: "curl -fsSL https://raw.githubusercontent.com/wkang0223/neuralmesh/master/scripts/install-agent-macos.sh | bash", label: "Install agent" },
-  { step: "2", cmd: "nm provider config --idle-minutes 10 --floor-price 0.05", label: "Set your price" },
-  { step: "3", cmd: "nm provider start", label: "Start earning" },
+  { step: "1", cmd: "curl -fsSL https://raw.githubusercontent.com/wkang0223/hatch/master/scripts/install-agent-macos.sh | bash", label: "Install agent" },
+  { step: "2", cmd: "hatch provider config --idle-minutes 10 --floor-price 0.05", label: "Set your price" },
+  { step: "3", cmd: "hatch provider start", label: "Start earning" },
 ];
 
 const STEPS_CONSUMER = [
-  { step: "1", cmd: "brew install hatch/tap/nm", label: "Install CLI" },
-  { step: "2", cmd: "nm gpu list --min-ram 48 --runtime mlx", label: "Browse GPUs" },
-  { step: "3", cmd: "nm job submit --runtime mlx --ram 48 ./inference.py", label: "Run your job" },
+  { step: "1", cmd: "brew install hatch/tap/hatch", label: "Install CLI" },
+  { step: "2", cmd: "hatch gpu list --min-ram 48 --runtime mlx", label: "Browse GPUs" },
+  { step: "3", cmd: "hatch job submit --runtime mlx --ram 48 ./inference.py", label: "Run your job" },
 ];
 
 // ── Page ──────────────────────────────────────────────────────────────────────
@@ -97,7 +97,7 @@ export default function LandingPage() {
             A decentralized marketplace for Apple M-series unified memory compute.
             Run Llama 3 70B on a Mac Mini M4 Pro for{" "}
             <span className="text-white font-semibold">$0.07/hr</span>.{" "}
-            Earn HC credits while your Mac sleeps.
+            Earn HTC credits while your Mac sleeps.
           </p>
 
           <p className="text-sm text-slate-500 max-w-xl mx-auto mb-10">
@@ -318,20 +318,20 @@ for line in job.stream_logs():
                 <span className="ml-auto text-xs text-slate-500 font-mono">brew</span>
               </div>
               <pre className="terminal text-xs leading-relaxed">{`# Install
-brew install hatch/tap/nm
+brew install hatch/tap/hatch
 
 # Browse available Macs
-nm gpu list --min-ram 48 --runtime mlx
+hatch gpu list --min-ram 48 --runtime mlx
 
 # Submit a job
-nm job submit \\
+hatch job submit \\
   --runtime mlx \\
   --ram 48 \\
   --hours 2 \\
   ./llama_inference.py
 
 # Stream logs
-nm job logs <job-id> --follow`}</pre>
+hatch job logs <job-id> --follow`}</pre>
             </div>
           </div>
         </div>
@@ -352,7 +352,7 @@ nm job logs <job-id> --follow`}</pre>
             {[
               {
                 icon: DollarSign, color: "text-green-400", bg: "bg-green-500/10 border-green-500/20",
-                step: "1", label: "Deposit", sub: "$1 = 1 HC",
+                step: "1", label: "Deposit", sub: "$1 = 1 HTC",
                 body: "Pay via Stripe or wire HC from Solana / Arbitrum. Credits appear instantly.",
               },
               { arrow: true },
@@ -400,7 +400,7 @@ nm job logs <job-id> --follow`}</pre>
           {/* Money split diagram */}
           <div className="glass rounded-2xl p-6 md:p-8 max-w-2xl mx-auto">
             <div className="text-center text-sm font-semibold text-white mb-6">
-              Example: 4-hour job at 0.10 HC/hr = <span className="text-brand-400">0.40 HC total</span>
+              Example: 4-hour job at 0.10 HC/hr = <span className="text-brand-400">0.40 HTC total</span>
             </div>
 
             {/* Bar */}
@@ -460,7 +460,7 @@ nm job logs <job-id> --follow`}</pre>
                 { phase: "Phase 2", label: "Hardening + Migration", active: false,
                   items: ["DMTCP job checkpointing + migration", "macOS Virtualization.framework", "Reputation system", "Next.js dashboard v1"] },
                 { phase: "Phase 3", label: "On-chain Token", active: false,
-                  items: ["HC ERC-20 on Arbitrum L2", "Trustless escrow smart contracts", "ZK Groth16 compute proofs", "Provider staking"] },
+                  items: ["HTC ERC-20 on Arbitrum L2", "Trustless escrow smart contracts", "ZK Groth16 compute proofs", "Provider staking"] },
                 { phase: "Phase 4", label: "NVIDIA + AMD + Intel Arc", active: false,
                   items: ["Linux agent (nvml · rocm_smi · Level Zero)", "Docker + NVIDIA Container Toolkit", "Firecracker MicroVMs", "Apache TVM cross-platform compiler"] },
               ].map((phase) => (
@@ -510,7 +510,7 @@ nm job logs <job-id> --follow`}</pre>
           <div className="flex items-center gap-6 text-sm text-slate-500">
             <Link href="/market" className="hover:text-white transition-colors">Market</Link>
             <Link href="/provider" className="hover:text-white transition-colors">Provider</Link>
-            <a href="https://github.com/wkang0223/neuralmesh" className="hover:text-white transition-colors" target="_blank" rel="noreferrer">
+            <a href="https://github.com/wkang0223/hatch" className="hover:text-white transition-colors" target="_blank" rel="noreferrer">
               GitHub
             </a>
             <a href="https://docs.hatch.dev" className="hover:text-white transition-colors" target="_blank" rel="noreferrer">

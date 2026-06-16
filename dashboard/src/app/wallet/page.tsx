@@ -14,7 +14,7 @@ import { ComplianceGate } from "@/components/ComplianceGate";
 import { ConnectWallet } from "@/components/ConnectWallet";
 import {
   CONTRACT_ADDRESSES, NMC_ABI, REGISTRY_ABI, PROVIDER_NFT_ABI,
-  hasContracts, formatNmc, tierLabel, tierColor, shortAddr, activeChain,
+  hasContracts, formatHtc, tierLabel, tierColor, shortAddr, activeChain,
 } from "@/lib/web3";
 
 // ── On-chain chain selector ───────────────────────────────────────────────────
@@ -73,7 +73,7 @@ function ProviderNftCard({ chain }: { chain: Chain }) {
       <div className="text-sm text-slate-500 text-center py-4">
         No provider NFT on {chain === "solana" ? "Solana" : "Arbitrum"}.
         <br />
-        <span className="text-xs">Run <code className="font-mono text-slate-400">nm provider register</code> to mint.</span>
+        <span className="text-xs">Run <code className="font-mono text-slate-400">hatch provider register</code> to mint.</span>
       </div>
     </div>
   );
@@ -85,7 +85,7 @@ function OnChainSection({ chain }: { chain: Chain }) {
   const { address, isConnected } = useAccount();
   const isArbitrum = chain === "arbitrum";
 
-  // Read on-chain HC balance + staking tier + provider NFT (only on Arbitrum)
+  // Read on-chain HTC balance + staking tier + provider NFT (only on Arbitrum)
   const nmcResult = useReadContract({
     address:  CONTRACT_ADDRESSES.nmc,
     abi:      NMC_ABI,
@@ -130,14 +130,14 @@ function OnChainSection({ chain }: { chain: Chain }) {
     return (
       <div className="glass rounded-xl p-5 glow-border">
         <div className="text-xs text-slate-500 uppercase tracking-wider mb-3">
-          On-chain HC · Solana
+          On-chain HTC · Solana
         </div>
         <div className="flex items-center gap-3">
           <AlertCircle className="h-5 w-5 text-yellow-400 flex-shrink-0" />
           <div>
             <p className="text-sm text-slate-300">Solana bridge in development</p>
             <p className="text-xs text-slate-500 mt-0.5">
-              Use the CLI: <code className="font-mono text-slate-400">nm wallet bridge-in &lt;amount&gt; --chain solana</code>
+              Use the CLI: <code className="font-mono text-slate-400">hatch wallet bridge-in &lt;amount&gt; --chain solana</code>
             </p>
           </div>
         </div>
@@ -152,9 +152,9 @@ function OnChainSection({ chain }: { chain: Chain }) {
         <div className="flex items-start justify-between flex-wrap gap-4">
           <div>
             <div className="text-xs text-slate-500 uppercase tracking-wider mb-3">
-              On-chain HC · {activeChain.name}
+              On-chain HTC · {activeChain.name}
             </div>
-            <p className="text-sm text-slate-300 mb-1">Connect a wallet to see your on-chain HC balance.</p>
+            <p className="text-sm text-slate-300 mb-1">Connect a wallet to see your on-chain HTC balance.</p>
             <p className="text-xs text-slate-500">
               Providers: staking tier, soul-bound NFT, and slashing history visible once connected.
             </p>
@@ -177,7 +177,7 @@ function OnChainSection({ chain }: { chain: Chain }) {
       <div className="flex items-start justify-between flex-wrap gap-4">
         <div>
           <div className="text-xs text-slate-500 uppercase tracking-wider mb-1">
-            On-chain HC · {activeChain.name}
+            On-chain HTC · {activeChain.name}
           </div>
           <ConnectWallet className="mt-2" />
         </div>
@@ -186,14 +186,14 @@ function OnChainSection({ chain }: { chain: Chain }) {
 
       {/* Balance + Tier row */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {/* HC balance */}
+        {/* HTC balance */}
         <div className="bg-slate-900/50 rounded-lg p-3 col-span-2 sm:col-span-2">
           <div className="text-xs text-slate-500 mb-1">Wallet balance</div>
           {isLoading ? (
             <Loader2 className="h-5 w-5 text-slate-600 animate-spin" />
           ) : (
             <div className="text-2xl font-bold font-mono text-brand-400">
-              {nmcBalance !== undefined ? formatNmc(nmcBalance) : "—"}
+              {nmcBalance !== undefined ? formatHtc(nmcBalance) : "—"}
               <span className="text-sm font-normal text-slate-500 ml-1.5">HC</span>
             </div>
           )}
@@ -216,12 +216,12 @@ function OnChainSection({ chain }: { chain: Chain }) {
 
         {/* Staked amount */}
         <div className="bg-slate-900/50 rounded-lg p-3">
-          <div className="text-xs text-slate-500 mb-1">Staked HC</div>
+          <div className="text-xs text-slate-500 mb-1">Staked HTC</div>
           {isLoading ? (
             <Loader2 className="h-4 w-4 text-slate-600 animate-spin" />
           ) : (
             <div className="text-sm font-mono text-slate-300">
-              {stakeInfo ? formatNmc(stakeInfo[0]) : "—"}
+              {stakeInfo ? formatHtc(stakeInfo[0]) : "—"}
             </div>
           )}
         </div>
@@ -232,7 +232,7 @@ function OnChainSection({ chain }: { chain: Chain }) {
         <div className="flex items-center gap-2 text-xs text-amber-400 bg-amber-500/10 rounded-lg px-3 py-2">
           <ArrowDownToLine className="h-3.5 w-3.5 flex-shrink-0" />
           <span>
-            {formatNmc(stakeInfo[1])} HC unbonding — claimable{" "}
+            {formatHtc(stakeInfo[1])} HC unbonding — claimable{" "}
             {new Date(Number(stakeInfo[2]) * 1000).toLocaleDateString()}
           </span>
         </div>
@@ -249,7 +249,7 @@ function OnChainSection({ chain }: { chain: Chain }) {
           <Cpu className="h-3.5 w-3.5 flex-shrink-0" />
           {isProvider
             ? "Soul-bound ProviderNFT minted — active in job matching"
-            : "No ProviderNFT. Run: nm provider register to mint one"}
+            : "No ProviderNFT. Run: hatch provider register to mint one"}
         </div>
       )}
 
@@ -294,7 +294,7 @@ export default function WalletPage() {
 
   useEffect(() => {
     if (typeof window !== "undefined") {
-      setAccountId(localStorage.getItem("nm_account_id"));
+      setAccountId(localStorage.getItem("hatch_account_id"));
     }
   }, []);
 
@@ -308,10 +308,10 @@ export default function WalletPage() {
         setBalance(bal);
         // Compute running balance_after for each transaction (newest first)
         // Start from current available + total_spent and walk backwards
-        let running = (bal.available_nmc ?? 0) + (bal.escrowed_nmc ?? 0);
+        let running = (bal.available_htc ?? 0) + (bal.escrowed_htc ?? 0);
         const withBalance = transactions.map((tx) => {
           const result = { ...tx, balance_after: running };
-          running -= tx.amount_nmc; // reverse out this tx
+          running -= tx.amount_htc; // reverse out this tx
           return result;
         });
         setTxns(withBalance);
@@ -322,7 +322,7 @@ export default function WalletPage() {
 
   async function handleDeposit() {
     const amt = parseFloat(depositAmt);
-    if (isNaN(amt) || amt < 10) { toast.error("Minimum deposit is 10 HC (RM 10)"); return; }
+    if (isNaN(amt) || amt < 10) { toast.error("Minimum deposit is 10 HTC (RM 10)"); return; }
     if (!accountId) { toast.error("Create an account first"); return; }
     try {
       // Detect country for FPX payment method
@@ -332,14 +332,14 @@ export default function WalletPage() {
       const res = await fetch("/api/stripe/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ account_id: accountId, amount_nmc: amt, country }),
+        body: JSON.stringify({ account_id: accountId, amount_htc: amt, country }),
       });
       const data = await res.json();
       if (!res.ok) { toast.error(data.error ?? "Checkout failed"); return; }
       // Redirect to Stripe Checkout — payment goes to operator's Stripe → bank account
       window.location.href = data.url;
     } catch {
-      toast.error("Deposit unavailable. Try: nm wallet deposit from CLI");
+      toast.error("Deposit unavailable. Try: hatch wallet deposit from CLI");
     }
   }
 
@@ -357,7 +357,7 @@ export default function WalletPage() {
       const data = await api.withdraw({
         account_id:          accountId,
         destination_address: withdrawAddr,
-        amount_nmc:          amt,
+        amount_htc:          amt,
         chain:               chain as "arbitrum" | "solana",
       });
       if (!data.ok) {
@@ -370,7 +370,7 @@ export default function WalletPage() {
           : (data.message ?? "Withdrawal queued successfully")
       );
     } catch {
-      toast.error("Withdrawal unavailable — use: nm wallet withdraw from CLI");
+      toast.error("Withdrawal unavailable — use: hatch wallet withdraw from CLI");
     }
   }
 
@@ -391,9 +391,9 @@ export default function WalletPage() {
         {/* Header + chain selector */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-white">HC Wallet</h1>
+            <h1 className="text-2xl font-bold text-white">HTC Wallet</h1>
             <p className="text-sm text-slate-500 mt-1">
-              Off-chain credits &amp; on-chain HC token · Quantum-resistant attestation
+              Off-chain credits &amp; on-chain HTC token · Quantum-resistant attestation
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -412,7 +412,7 @@ export default function WalletPage() {
             <div>
               <p className="text-white font-semibold">No account found</p>
               <p className="text-slate-400 text-sm mt-1">
-                <a href="/account" className="text-brand-400 hover:text-brand-300">Create a device-linked account</a> to manage your HC balance.
+                <a href="/account" className="text-brand-400 hover:text-brand-300">Create a device-linked account</a> to manage your HTC balance.
               </p>
             </div>
           </div>
@@ -426,7 +426,7 @@ export default function WalletPage() {
           <div className="glass rounded-xl p-5 sm:col-span-1">
             <DollarSign className="h-5 w-5 text-brand-400 mb-2" />
             <div className="text-3xl font-bold font-mono text-brand-400">
-              {loading ? "—" : (balance?.available_nmc ?? 0).toFixed(4)}
+              {loading ? "—" : (balance?.available_htc ?? 0).toFixed(4)}
             </div>
             <div className="text-xs text-slate-500 mt-1">Off-chain credits</div>
           </div>
@@ -434,7 +434,7 @@ export default function WalletPage() {
           <div className="glass rounded-xl p-5 sm:col-span-1">
             <Lock className="h-5 w-5 text-yellow-400 mb-2" />
             <div className="text-2xl font-bold font-mono text-yellow-400">
-              {loading ? "—" : (balance?.escrowed_nmc ?? 0).toFixed(4)}
+              {loading ? "—" : (balance?.escrowed_htc ?? 0).toFixed(4)}
             </div>
             <div className="text-xs text-slate-500 mt-1">In escrow</div>
           </div>
@@ -442,7 +442,7 @@ export default function WalletPage() {
           <div className="glass rounded-xl p-5 sm:col-span-1">
             <TrendingUp className="h-5 w-5 text-green-400 mb-2" />
             <div className="text-2xl font-bold font-mono text-green-400">
-              {loading ? "—" : (balance?.total_earned_nmc ?? 0).toFixed(4)}
+              {loading ? "—" : (balance?.total_earned_htc ?? 0).toFixed(4)}
             </div>
             <div className="text-xs text-slate-500 mt-1">Total earned</div>
           </div>
@@ -475,11 +475,11 @@ export default function WalletPage() {
           {/* Deposit / Bridge-in */}
           <div className="glass rounded-xl p-5">
             <h2 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
-              <Plus className="h-4 w-4 text-green-400" /> Add HC Credits
+              <Plus className="h-4 w-4 text-green-400" /> Add HTC Credits
             </h2>
             <div className="space-y-3">
               <div>
-                <label className="text-xs text-slate-500 block mb-1.5">Amount (HC)</label>
+                <label className="text-xs text-slate-500 block mb-1.5">Amount (HTC)</label>
                 <input
                   type="number" min="1" step="1"
                   value={depositAmt}
@@ -494,13 +494,13 @@ export default function WalletPage() {
                 Pay via Stripe (FPX / Card) →
               </button>
               <p className="text-xs text-slate-600 text-center">
-                1 HC = RM 1.00 · Stripe collects payment, funds deposited to operator bank account (T+2)
+                1 HTC = RM 1.00 · Stripe collects payment, funds deposited to operator bank account (T+2)
               </p>
               <div className="text-center text-xs text-slate-600 space-y-1">
                 <p>Or bridge from {chain === "solana" ? "Solana" : "Arbitrum"}:</p>
                 <p>
                   <code className="font-mono text-slate-500">
-                    nm wallet bridge-in {depositAmt || "50"} --chain {chain}
+                    hatch wallet bridge-in {depositAmt || "50"} --chain {chain}
                   </code>
                 </p>
               </div>
@@ -527,7 +527,7 @@ export default function WalletPage() {
                 />
               </div>
               <div>
-                <label className="text-xs text-slate-500 block mb-1.5">Amount (HC)</label>
+                <label className="text-xs text-slate-500 block mb-1.5">Amount (HTC)</label>
                 <input
                   type="number" min="0.01" step="0.01"
                   value={withdrawAmt}
@@ -539,7 +539,7 @@ export default function WalletPage() {
                 onClick={handleWithdraw}
                 className="w-full py-2.5 rounded-lg bg-yellow-400/10 border border-yellow-400/20 text-yellow-400 text-sm font-medium hover:bg-yellow-400/20 transition-colors"
               >
-                Bridge out → {chain === "solana" ? "Solana HC" : "Arbitrum HC"}
+                Bridge out → {chain === "solana" ? "Solana HTC" : "Arbitrum HTC"}
               </button>
             </div>
           </div>
@@ -577,7 +577,7 @@ export default function WalletPage() {
                   </div>
                   <div className="text-right">
                     <div className={cn("text-sm font-mono font-medium", txColor(tx.kind))}>
-                      {txSign(tx.kind)}{Math.abs(tx.amount_nmc).toFixed(4)} HC
+                      {txSign(tx.kind)}{Math.abs(tx.amount_htc).toFixed(4)} HTC
                     </div>
                     <div className="text-xs text-slate-500 mt-0.5">
                       bal: {tx.balance_after.toFixed(4)}

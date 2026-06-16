@@ -157,7 +157,7 @@ export default function JobDetailPage({
               { label: "Runtime",  value: runtimeShort(job.runtime) },
               { label: "Min RAM",  value: `${job.min_ram_gb} GB` },
               { label: "Max price",value: `${job.max_price_per_hour} HC/hr` },
-              { label: "Actual cost", value: job.actual_cost_nmc ? `${job.actual_cost_nmc.toFixed(4)} HC` : "—" },
+              { label: "Actual cost", value: job.actual_cost_htc ? `${job.actual_cost_htc.toFixed(4)} HTC` : "—" },
             ].map((item) => (
               <div key={item.label} className="glass rounded-lg px-3 py-2.5">
                 <div className="text-xs text-slate-500">{item.label}</div>

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getStripe, MIN_DEPOSIT_NMC } from "@/lib/stripe";
+import { getStripe, MIN_DEPOSIT_HTC } from "@/lib/stripe";
 
 // POST /api/stripe/checkout
 // Creates a Stripe Checkout session. Money goes to operator's Stripe account
@@ -7,20 +7,20 @@ import { getStripe, MIN_DEPOSIT_NMC } from "@/lib/stripe";
 // On success, Stripe fires the checkout.session.completed webhook which credits HC.
 export async function POST(req: NextRequest) {
   try {
-    const { account_id, amount_nmc, country } = await req.json();
+    const { account_id, amount_htc, country } = await req.json();
 
     if (!account_id || typeof account_id !== "string") {
       return NextResponse.json({ error: "account_id required" }, { status: 400 });
     }
-    if (!amount_nmc || amount_nmc < MIN_DEPOSIT_NMC) {
+    if (!amount_htc || amount_htc < MIN_DEPOSIT_HTC) {
       return NextResponse.json(
-        { error: `Minimum deposit is ${MIN_DEPOSIT_NMC} HC` },
+        { error: `Minimum deposit is ${MIN_DEPOSIT_HTC} HC` },
         { status: 400 }
       );
     }
 
     // Amount in sen (MYR cents). 1 HC = RM 1.00 = 100 sen.
-    const amount_sen = Math.round(amount_nmc * 100);
+    const amount_sen = Math.round(amount_htc * 100);
 
     // Payment methods: FPX is the primary Malaysian internet banking method.
     // Card is for international users. Both are Stripe-standard.
@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
             product_data: {
               name: "Hatch Credits (HC)",
               description:
-                `${amount_nmc} HC — non-transferable compute credit voucher. ` +
+                `${amount_htc} HTC — non-transferable compute credit voucher. ` +
                 "Redeemable exclusively for GPU compute time on Hatch. " +
                 "Not a financial instrument or investment product.",
             },
@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
       cancel_url: `${baseUrl}/wallet?deposit=cancelled`,
       metadata: {
         account_id,
-        amount_nmc: String(amount_nmc),
+        amount_htc: String(amount_htc),
         // Carry country so webhook can log it for AMLA records
         country: country ?? "unknown",
       },

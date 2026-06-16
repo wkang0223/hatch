@@ -32,8 +32,8 @@ export async function POST(req: NextRequest) {
     // Only process fully paid sessions (FPX can be async)
     if (session.payment_status !== "paid") return NextResponse.json({ received: true });
 
-    const { account_id, amount_nmc, country } = session.metadata ?? {};
-    if (!account_id || !amount_nmc) {
+    const { account_id, amount_htc, country } = session.metadata ?? {};
+    if (!account_id || !amount_htc) {
       console.error("Stripe webhook: missing metadata on session", session.id);
       return NextResponse.json({ error: "Missing metadata" }, { status: 400 });
     }
@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
         },
         body: JSON.stringify({
           account_id,
-          amount_nmc: parseFloat(amount_nmc),
+          amount_htc: parseFloat(amount_htc),
           stripe_session_id: session.id,
           stripe_payment_intent: session.payment_intent,
           // AMLA: record amount in MYR for annual limit tracking
@@ -74,8 +74,8 @@ export async function POST(req: NextRequest) {
   // FPX payments can have a delay — handle async payment success
   if (event.type === "checkout.session.async_payment_succeeded") {
     const session = event.data.object as Stripe.Checkout.Session;
-    const { account_id, amount_nmc } = session.metadata ?? {};
-    if (account_id && amount_nmc) {
+    const { account_id, amount_htc } = session.metadata ?? {};
+    if (account_id && amount_htc) {
       const coordinatorUrl = process.env.COORDINATOR_URL ?? "http://localhost:8080";
       await fetch(`${coordinatorUrl}/api/v1/ledger/stripe-credit`, {
         method: "POST",
@@ -85,7 +85,7 @@ export async function POST(req: NextRequest) {
         },
         body: JSON.stringify({
           account_id,
-          amount_nmc: parseFloat(amount_nmc),
+          amount_htc: parseFloat(amount_htc),
           stripe_session_id: session.id,
           amount_myr: (session.amount_total ?? 0) / 100,
           country: session.metadata?.country ?? "unknown",

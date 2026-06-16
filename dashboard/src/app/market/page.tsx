@@ -6,7 +6,15 @@ import { cn, stateColor, runtimeShort, trustStars } from "@/lib/utils";
 import { Search, Filter, Zap, RefreshCw, ChevronRight } from "lucide-react";
 import Link from "next/link";
 
-const RUNTIMES = ["all", "mlx", "torch-mps", "onnx-coreml", "llama-cpp"];
+const RUNTIMES = [
+  "all",
+  // Apple Silicon
+  "mlx", "torch-mps", "onnx-coreml", "llama-cpp",
+  // NVIDIA
+  "torch-cuda", "vllm-cuda", "tensorrt", "llama-cpp-cuda", "onnx-cuda",
+  // AMD
+  "torch-rocm", "llama-cpp-hip", "onnx-rocm",
+];
 const SORT_OPTIONS = [
   { value: "price", label: "Price (low to high)" },
   { value: "ram",   label: "Memory (high to low)" },
@@ -209,7 +217,7 @@ function ProviderCard({ provider: p }: { provider: Provider }) {
         </div>
         <div className="bg-slate-900/60 rounded-lg p-2.5 text-center">
           <div className="text-lg font-bold text-green-400 font-mono">
-            ${p.floor_price_nmc_per_hour.toFixed(2)}
+            ${p.floor_price_htc_per_hour.toFixed(2)}
           </div>
           <div className="text-xs text-slate-500">HC/hr</div>
         </div>

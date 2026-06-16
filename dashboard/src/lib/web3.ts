@@ -170,7 +170,7 @@ export const PROVIDER_NFT_ABI = [
 // ── Formatting helpers ────────────────────────────────────────────────────────
 
 /** Convert HC wei (18 decimals) to a human-readable float. */
-export function formatNmc(wei: bigint): string {
+export function formatHtc(wei: bigint): string {
   const divisor = 10n ** 18n;
   const whole   = wei / divisor;
   const frac    = wei % divisor;
