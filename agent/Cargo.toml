@@ -1,0 +1,41 @@
+[package]
+name = "hatch-agent"
+version.workspace = true
+edition.workspace = true
+default-run = "hatch-agent"
+
+[[bin]]
+name = "hatch-agent"
+path = "src/main.rs"
+
+[dependencies]
+hatch-common    = { workspace = true }
+hatch-proto     = { workspace = true }
+hatch-crypto    = { workspace = true }
+hatch-wireguard = { workspace = true }
+hatch-gpu       = { workspace = true }
+
+# Platform-specific: macOS uses hatch-macos; Linux uses hatch-linux.
+# The agent compiles both in; cfg gating selects the right code path at runtime.
+hatch-macos     = { workspace = true }
+hatch-linux     = { workspace = true }
+
+tokio        = { workspace = true }
+tonic        = { workspace = true }
+serde        = { workspace = true }
+serde_json   = { workspace = true }
+toml         = { workspace = true }
+anyhow       = { workspace = true }
+thiserror    = { workspace = true }
+tracing      = { workspace = true }
+tracing-subscriber = { workspace = true }
+uuid         = { workspace = true }
+sha2         = { workspace = true }
+hex          = { workspace = true }
+clap         = { workspace = true }
+dirs         = { workspace = true }
+tokio-stream = { workspace = true }
+blake3       = { workspace = true }
+sqlx         = { workspace = true }
+prost-types  = { workspace = true }
+reqwest      = { workspace = true }

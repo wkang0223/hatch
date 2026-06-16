@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO transactions (tx_id, account_id, tx_type, amount_htc, balance_after, reference, description)\n           VALUES ($1, $2, 'withdraw', $3,\n               (SELECT available_htc FROM credit_accounts WHERE account_id = $2),\n               $4, 'Withdrawal request')",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Float8",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "d11132dec3b5127c05f3bf82e4688a273bd9228999ab48343cc02d6785f2a631"
+}

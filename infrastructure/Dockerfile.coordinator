@@ -1,0 +1,45 @@
+# Build stage — rust:1.88+ required by time@0.3.47, home@0.5.12
+FROM rust:1.88-slim-bookworm AS builder
+
+RUN apt-get update && apt-get install -y \
+    protobuf-compiler \
+    pkg-config \
+    libssl-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /build
+
+COPY Cargo.toml Cargo.lock ./
+COPY crates/ crates/
+COPY proto/ proto/
+COPY coordinator/ coordinator/
+COPY agent/ agent/
+COPY ledger/ ledger/
+COPY cli/ cli/
+COPY .sqlx/ .sqlx/
+
+ENV SQLX_OFFLINE=true
+RUN cargo build --release -p neuralmesh-coordinator
+
+# Runtime stage
+FROM debian:bookworm-slim
+
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    libssl3 \
+    tar \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /build/target/release/neuralmesh-coordinator /usr/local/bin/neuralmesh-coordinator
+
+# Pre-create artifact and checkpoint directories
+RUN mkdir -p /var/neuralmesh/artifacts /var/neuralmesh/checkpoints
+
+EXPOSE 8080 9090
+
+ENV RUST_LOG=info
+# Set this to your Railway public domain so artifact download URLs are correct.
+# Override via Railway service variable: NM_PUBLIC_URL=https://hatch-coordinator.up.railway.app
+ENV NM_PUBLIC_URL=""
+
+CMD ["neuralmesh-coordinator"]

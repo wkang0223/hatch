@@ -1,0 +1,130 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT job_id, consumer_id, provider_id, state, runtime,\n               min_ram_gb, max_price_per_hour, price_per_hour,\n               bundle_hash, bundle_url, output_hash,\n               actual_runtime_s, restore_attempts, failure_reason,\n               checkpoint_url, checkpoint_iter,\n               started_at, completed_at, created_at\n        FROM jobs\n        WHERE job_id = $1\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "job_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "consumer_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "provider_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "state",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "runtime",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 5,
+        "name": "min_ram_gb",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 6,
+        "name": "max_price_per_hour",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 7,
+        "name": "price_per_hour",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 8,
+        "name": "bundle_hash",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 9,
+        "name": "bundle_url",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 10,
+        "name": "output_hash",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 11,
+        "name": "actual_runtime_s",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 12,
+        "name": "restore_attempts",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 13,
+        "name": "failure_reason",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 14,
+        "name": "checkpoint_url",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 15,
+        "name": "checkpoint_iter",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 16,
+        "name": "started_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 17,
+        "name": "completed_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 18,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "e60fb5494af75dd029a26902c88ba6f6bc15affb11616474111f0c496f30acc1"
+}

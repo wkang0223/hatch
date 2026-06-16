@@ -1,0 +1,11 @@
+[package]
+name = "hatch-linux"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+anyhow   = { workspace = true }
+tracing  = { workspace = true }
+hatch-gpu = { workspace = true }
+serde    = { workspace = true }
+serde_json = { workspace = true }

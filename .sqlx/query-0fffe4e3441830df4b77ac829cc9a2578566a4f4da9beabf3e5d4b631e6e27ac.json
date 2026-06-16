@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE providers\n        SET state = 'offline'\n        WHERE state = 'available'\n          AND last_seen < now() - INTERVAL '90 seconds'\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "0fffe4e3441830df4b77ac829cc9a2578566a4f4da9beabf3e5d4b631e6e27ac"
+}

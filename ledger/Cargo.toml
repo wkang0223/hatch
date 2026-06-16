@@ -1,0 +1,36 @@
+[package]
+name = "hatch-ledger"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "hatch-ledger"
+path = "src/main.rs"
+
+[dependencies]
+hatch-common = { workspace = true }
+hatch-proto  = { workspace = true }
+hatch-crypto = { workspace = true }
+
+tokio      = { workspace = true }
+tonic      = { workspace = true }
+axum       = { workspace = true }
+sqlx       = { workspace = true }
+serde      = { workspace = true }
+serde_json = { workspace = true }
+anyhow     = { workspace = true }
+thiserror  = { workspace = true }
+tracing    = { workspace = true }
+tracing-subscriber = { workspace = true }
+uuid       = { workspace = true }
+time       = { workspace = true }
+clap       = { workspace = true }
+tower-http = { workspace = true }
+rand       = { workspace = true }
+hex        = { workspace = true }
+sha2       = { workspace = true }
+
+# On-chain settlement (Phase 3) — minimal deps, no alloy (serde compat issues)
+k256    = { version = "0.13", features = ["ecdsa", "sha256"] }
+sha3    = "0.10"
+reqwest = { workspace = true }

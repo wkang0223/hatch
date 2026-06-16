@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO transactions (tx_id, account_id, tx_type, amount_htc, reference, description)\n           VALUES ($1, $2, 'escrow_release', $3, $4, 'Provider disconnect refund')",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Float8",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "ea405b91fa697cd1473851cb58c6a189a7ea353d95549362001623c238a0b08b"
+}

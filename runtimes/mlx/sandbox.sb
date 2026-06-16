@@ -1,0 +1,82 @@
+;;; NeuralMesh macOS sandbox profile — MLX runtime
+;;; Generated per-job; JOB_DIR is replaced by job_runner before exec.
+;;; Applied via: sandbox-exec -f <this-file> python3 <script>
+
+(version 1)
+(deny default)
+
+;;; ── Job working directory ─────────────────────────────────────────────────
+(allow file-read*
+  (subpath "JOB_DIR"))
+(allow file-write*
+  (subpath "JOB_DIR"))
+
+;;; ── System libraries ──────────────────────────────────────────────────────
+(allow file-read*
+  (subpath "/usr/lib")
+  (subpath "/usr/local/lib")
+  (subpath "/System/Library")
+  (subpath "/private/var/db/dyld")
+  (subpath "/Library/Apple")
+  (literal "/etc/localtime")
+  (literal "/private/etc/localtime"))
+
+;;; ── Python interpreter + site-packages ───────────────────────────────────
+(allow file-read*
+  (subpath "/usr/bin")
+  (subpath "/opt/homebrew/bin")
+  (subpath "/opt/homebrew/lib")
+  (subpath "/opt/homebrew/Cellar")
+  (subpath "/opt/homebrew/opt")
+  (subpath "/Library/Python")
+  (subpath "/usr/local/bin")
+  (subpath "/usr/local/lib"))
+
+;;; ── MLX + Metal GPU frameworks ───────────────────────────────────────────
+(allow file-read*
+  (subpath "/System/Library/Frameworks/Metal.framework")
+  (subpath "/System/Library/Frameworks/MetalPerformanceShaders.framework")
+  (subpath "/System/Library/Frameworks/MetalPerformanceShadersGraph.framework")
+  (subpath "/System/Library/Frameworks/Accelerate.framework")
+  (subpath "/System/Library/Frameworks/Foundation.framework")
+  (subpath "/System/Library/PrivateFrameworks"))
+
+;;; ── HuggingFace model cache (read-only) ──────────────────────────────────
+(allow file-read*
+  (subpath (string-append (param "HOME") "/.cache/huggingface")))
+
+;;; ── Temp files (system) ───────────────────────────────────────────────────
+(allow file-read* file-write*
+  (subpath "/private/tmp/mlx"))
+(allow file-read* file-write*
+  (subpath "/private/var/folders"))
+
+;;; ── Process / Mach ────────────────────────────────────────────────────────
+(allow process-exec
+  (subpath "/usr/bin")
+  (subpath "/opt/homebrew/bin")
+  (subpath "/usr/local/bin"))
+(allow process-fork)
+
+;;; ── Mach IPC (required for Metal GPU access) ─────────────────────────────
+(allow mach-lookup)
+(allow mach-register)
+
+;;; ── IOKit (required for Metal GPU device enumeration) ────────────────────
+(allow iokit-open)
+(allow iokit-get-properties)
+(allow iokit-set-properties
+  (iokit-property "IOGPUCommandQueueOptions"))
+
+;;; ── Network: localhost only (for local model servers) ─────────────────────
+(allow network-outbound
+  (local tcp)
+  (local udp))
+(deny network-outbound)
+
+;;; ── Signals ───────────────────────────────────────────────────────────────
+(allow signal
+  (target self))
+
+;;; ── sysctl reads (for device info) ──────────────────────────────────────
+(allow sysctl-read)

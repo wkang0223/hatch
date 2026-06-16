@@ -1,0 +1,38 @@
+# Build stage — rust:1.88+ required by time@0.3.47, home@0.5.12
+FROM rust:1.88-slim-bookworm AS builder
+
+RUN apt-get update && apt-get install -y \
+    protobuf-compiler \
+    pkg-config \
+    libssl-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /build
+
+COPY Cargo.toml Cargo.lock ./
+COPY crates/ crates/
+COPY proto/ proto/
+COPY coordinator/ coordinator/
+COPY agent/ agent/
+COPY ledger/ ledger/
+COPY cli/ cli/
+COPY .sqlx/ .sqlx/
+
+ENV SQLX_OFFLINE=true
+RUN cargo build --release -p neuralmesh-ledger
+
+# Runtime stage
+FROM debian:bookworm-slim
+
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    libssl3 \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /build/target/release/neuralmesh-ledger /usr/local/bin/neuralmesh-ledger
+
+EXPOSE 8082
+
+ENV RUST_LOG=info
+
+CMD ["neuralmesh-ledger"]

@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT locked_htc FROM escrows WHERE job_id = $1 AND state = 'locked' LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "locked_htc",
+        "type_info": "Float8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "17b1290d249b70a0a319f793499230d348332ae54ac502d143d3f7f46bca8f07"
+}

@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE credit_accounts\n        SET escrowed_htc  = escrowed_htc  - $1,\n            available_htc = available_htc + $2,  -- refund\n            updated_at = now()\n        WHERE account_id = $3\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Float8",
+        "Float8",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "553153b8c7a558ea188e13fb9d17328f5bb6a687ed15d9987eb9eea8af718588"
+}

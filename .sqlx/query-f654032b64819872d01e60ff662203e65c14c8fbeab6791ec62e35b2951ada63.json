@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO credit_accounts (account_id, available_htc)\n           VALUES ($1, $2)\n           ON CONFLICT (account_id) DO UPDATE\n             SET available_htc = credit_accounts.available_htc + $2,\n                 escrowed_htc  = GREATEST(0, credit_accounts.escrowed_htc - $2),\n                 updated_at    = now()",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Float8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "f654032b64819872d01e60ff662203e65c14c8fbeab6791ec62e35b2951ada63"
+}

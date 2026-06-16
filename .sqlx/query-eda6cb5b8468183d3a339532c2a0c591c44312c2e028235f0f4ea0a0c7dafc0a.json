@@ -1,0 +1,108 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT job_id, consumer_id, provider_id, state, runtime,\n               min_ram_gb, max_price_per_hour, price_per_hour,\n               bundle_hash, bundle_url,\n               actual_runtime_s, checkpoint_url,\n               started_at, completed_at, created_at\n        FROM jobs\n        WHERE ($1::TEXT IS NULL OR consumer_id = $1)\n          AND ($2::TEXT IS NULL OR state = $2)\n        ORDER BY created_at DESC\n        LIMIT $3\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "job_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "consumer_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "provider_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "state",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "runtime",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 5,
+        "name": "min_ram_gb",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 6,
+        "name": "max_price_per_hour",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 7,
+        "name": "price_per_hour",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 8,
+        "name": "bundle_hash",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 9,
+        "name": "bundle_url",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 10,
+        "name": "actual_runtime_s",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 11,
+        "name": "checkpoint_url",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 12,
+        "name": "started_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 13,
+        "name": "completed_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 14,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "eda6cb5b8468183d3a339532c2a0c591c44312c2e028235f0f4ea0a0c7dafc0a"
+}

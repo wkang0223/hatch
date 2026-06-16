@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE escrows SET state = 'released', settled_at = now() WHERE job_id = $1 AND state = 'locked'",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "d3c591d680d812286a628962a23691ae10e2a136a35a33478de5b0f572107412"
+}

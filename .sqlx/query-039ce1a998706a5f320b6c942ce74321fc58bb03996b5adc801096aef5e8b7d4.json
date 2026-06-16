@@ -1,0 +1,40 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT available_htc, escrowed_htc, total_earned_htc, total_spent_htc FROM credit_accounts WHERE account_id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "available_htc",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 1,
+        "name": "escrowed_htc",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 2,
+        "name": "total_earned_htc",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 3,
+        "name": "total_spent_htc",
+        "type_info": "Float8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "039ce1a998706a5f320b6c942ce74321fc58bb03996b5adc801096aef5e8b7d4"
+}

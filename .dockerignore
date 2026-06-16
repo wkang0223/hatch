@@ -1,0 +1,8 @@
+target/
+.git/
+dashboard/node_modules/
+dashboard/.next/
+dashboard/.env*.local
+*.env
+.env*
+infrastructure/docker-compose.yml

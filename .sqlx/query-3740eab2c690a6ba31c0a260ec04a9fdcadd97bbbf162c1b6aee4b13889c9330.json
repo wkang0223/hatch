@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE credit_accounts\n        SET escrowed_htc    = GREATEST(0.0, escrowed_htc - $1),\n            available_htc   = available_htc + $2,\n            total_spent_htc = total_spent_htc + $3,\n            updated_at      = now()\n        WHERE account_id   = $4\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Float8",
+        "Float8",
+        "Float8",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "3740eab2c690a6ba31c0a260ec04a9fdcadd97bbbf162c1b6aee4b13889c9330"
+}

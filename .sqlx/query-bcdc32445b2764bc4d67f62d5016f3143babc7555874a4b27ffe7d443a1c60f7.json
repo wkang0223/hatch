@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO credit_accounts (account_id, available_htc, total_earned_htc)\n        VALUES ($1, $2, $2)\n        ON CONFLICT (account_id) DO UPDATE\n        SET available_htc    = credit_accounts.available_htc    + $2,\n            total_earned_htc = credit_accounts.total_earned_htc + $2,\n            updated_at       = now()\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Float8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "bcdc32445b2764bc4d67f62d5016f3143babc7555874a4b27ffe7d443a1c60f7"
+}
